@@ -19,7 +19,7 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 
 ## Install
 
-- **Steam Workshop:** subscribe to DogShare. The loader picks it up automatically.
+- **Steam Workshop:** subscribe to [DogShare](https://steamcommunity.com/sharedfiles/filedetails/?id=3837154256). The loader picks it up automatically.
 - **Manually:** put `DogShare.dll` in `%USERPROFILE%\AppData\LocalLow\LevenLiu\ZEDZONE\Mods\DogShare\`.
 
 Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare 1.0.0 loaded`.
