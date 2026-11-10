@@ -9,7 +9,7 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 - **F8** (host): takes back the guest's dog closest to you.
 - A guest's dog follows them and fights for them. It's saved in the host's world, and links back to its owner when they rejoin.
 - **Guests use their dog like their own:** the game's **Commands / Pet / Feed** prompt at the dog, the Teammates card and its orders menu (Follow, Stay, Passive, Defensive, Aggressive), rename, skills, first aid, gear (collar, vest, saddlebag) and the saddlebag's storage. Food, medicine and gear come from and go back to the guest's own backpack; the host does each action on the real dog with the game's own code.
-- **Animations are synced** for players with DogShare: dogs sitting to be petted or eating, and the petting pose, show up for everyone (the game itself only shows them on the PC doing it).
+- **Animations and sounds are synced** for players with DogShare: dogs sitting to be petted or eating, their barks, whines and happy sounds, and the petting pose reach everyone (the game itself only plays them on the host / the PC doing it).
 - **Shared dogs get hungry like any dog**, and whoever owns one feeds it (the host his own, a guest theirs, with the game's food picker). `AutoFeedGuestDogs` turns on an automatic top-up instead.
 
 **Everyone should have DogShare:** the host to give dogs, guests for the prompts and Teammates card. A guest without it still gets a dog that follows and fights for them.

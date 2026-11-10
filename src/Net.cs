@@ -286,6 +286,7 @@ namespace DogShare
             pc.AddAffection(PetSystem.affectionPet);
             DLog.Info("req", $"  affection {before:0.#} -> {pd.affectionXp:0.#} (level {pd.affectionLevel})");
             try { pc.PlayPetAnim("Dog_SitAlert", 2.5f); } catch (Exception e) { DLog.Error("req", "  petting animation failed", e); }   // also sent to guests
+            try { pc.PlayHappy(); } catch { }                                                                                         // sound, also sent to guests
             Changed(dog);
             return "Good dog!";
         }

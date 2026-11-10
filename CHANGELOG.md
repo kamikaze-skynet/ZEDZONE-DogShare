@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.3
+- Dog sounds are synced for players with DogShare: barks, whines and the happy / soft sounds a dog makes on the host also play on every guest's copy of that dog (the game only played them for the host). Petting a shared dog now also makes its happy sound.
+
 ## 1.4.2
 - Fix (1.4.1 regression): setting a shared dog's hunger on the guest crashed before the dog's character data existed, so the dog never got set up (no prompt or Teammates card). Hunger is now set after the character data is in place, and new shared dogs start with placeholder character data.
 - A failure that repeats every few seconds is now logged at most every 30 s.

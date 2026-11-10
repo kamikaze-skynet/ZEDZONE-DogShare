@@ -13,6 +13,7 @@ namespace DogShare
     //   host -> guests  Y|*|netId|anim|seconds   a dog played an animation (any dog the host simulates)
     //   host -> guests  Z|*|charId8|1/0           a player started / stopped the petting pose
     //   guest -> host   V|1/0                     I started / stopped the petting pose
+    //   host -> guests  S|*|netId|sound|arg       a dog made a sound (bark, whine, soft, happy)
     internal static class AnimSync
     {
         internal static bool Applying;   // set while we apply a remote animation, so we don't echo it back
@@ -84,6 +85,14 @@ namespace DogShare
                 ApplyDogAnim(c, p[3], Flt(p[4]));
                 DLog.Debug("guest", $"Played dog animation {p[3]} on net id {netId}");
             }
+            else if (p[0] == "S" && p.Length >= 5)
+            {
+                int netId = Int(p[2]);
+                var c = NetMonsterSync.instance?.ClientGetPuppet(netId)?.TryCast<PetCharacterController>();
+                if (c == null) return;
+                ApplySound(c, p[3], p[4]);
+                DLog.Debug("guest", $"Played dog sound {p[3]} on net id {netId}");
+            }
             else if (p[0] == "Z" && p.Length >= 4)
             {
                 string who = p[2];
@@ -97,6 +106,40 @@ namespace DogShare
                     return;
                 }
             }
+        }
+
+        internal static void ApplySound(PetCharacterController pc, string kind, string arg)
+        {
+            Applying = true;
+            var saved = PromptFlags.Clear(pc, "sound");
+            try
+            {
+                float f = Flt(arg);
+                switch (kind)
+                {
+                    case "bark": pc.PlayBark(); break;
+                    case "whine": pc.PlayWhine(); break;
+                    case "soft": pc.PlaySoft(f); break;
+                    case "happy": pc.PlayHappy(); break;
+                    case "hit": pc.PlayOnHitAudioClip(arg == "1"); break;
+                }
+            }
+            catch (Exception e) { DLog.Throttle("snderr", 30f, "error", "Playing a dog sound failed: " + e.Message); }
+            finally { PromptFlags.Restore(pc, saved); Applying = false; }
+        }
+
+        // Host: tell the guests a dog made a sound.
+        internal static void SendSound(PetCharacterController pc, string kind, string arg)
+        {
+            try
+            {
+                if (Applying || !IsHost() || pc == null) return;
+                int netId = -1;
+                if (!NetMonsterSync.instance.HostTryGetNetId(pc, out netId) || netId < 0) return;
+                BroadcastToGuests(Proto.Join("S", "*", netId, kind, arg));
+                DLog.Debug("send", $"Dog sound {kind} (net id {netId}) sent to guests");
+            }
+            catch (Exception e) { DLog.Throttle("sndsend", 30f, "error", "Sending a dog sound failed: " + e.Message); }
         }
 
         static int Int(string s) => int.TryParse(s, out var v) ? v : -1;
@@ -140,6 +183,33 @@ namespace DogShare
             }
             catch (Exception e) { DLog.Throttle("animsend", 30f, "error", "Sending a dog animation failed: " + e.Message); }
         }
+
+        // Host: dog sounds go to the guests' copies too.
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.PlayBark))]
+        [HarmonyPostfix] static void Bark(PetCharacterController __instance) => AnimSync.SendSound(__instance, "bark", "0");
+
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.PlayWhine))]
+        [HarmonyPostfix] static void Whine(PetCharacterController __instance) => AnimSync.SendSound(__instance, "whine", "0");
+
+        // TryPlayWhine only whines when its cooldown allows; nextWhineTime moves when it actually did.
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.TryPlayWhine))]
+        [HarmonyPrefix] static void TryWhinePre(PetCharacterController __instance, out float __state)
+        {
+            __state = 0f;
+            try { __state = __instance.nextWhineTime; } catch { }
+        }
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.TryPlayWhine))]
+        [HarmonyPostfix] static void TryWhinePost(PetCharacterController __instance, float __state)
+        {
+            try { if (__instance.nextWhineTime != __state) AnimSync.SendSound(__instance, "whine", "0"); } catch { }
+        }
+
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.PlaySoft))]
+        [HarmonyPostfix] static void Soft(PetCharacterController __instance, float volumeScale)
+            => AnimSync.SendSound(__instance, "soft", volumeScale.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.PlayHappy))]
+        [HarmonyPostfix] static void Happy(PetCharacterController __instance) => AnimSync.SendSound(__instance, "happy", "0");
 
         // The local player's petting pose: host tells the guests, a guest tells the host.
         [HarmonyPatch(typeof(HumanCharacterController), nameof(HumanCharacterController.SetPetDogVisual))]
