@@ -22,13 +22,16 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.3.0";
+        public const string Version = "1.3.1";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
         internal static ConfigEntry<int> MaxPerGuest;
         internal static ConfigEntry<float> Range;
         internal static ConfigEntry<bool> KeepFed;
+        internal static ConfigEntry<bool> VerboseLog;
+
+        static int CountPatched(Harmony h) { int n = 0; foreach (var _ in h.GetPatchedMethods()) n++; return n; }
 
         public override void Load()
         {
@@ -39,18 +42,41 @@ namespace DogShare
             Range = Config.Bind("Rules", "Range", 8f, "How close (in game units) the guest / dog must be to the host.");
             KeepFed = Config.Bind("Rules", "KeepGuestDogsFed", true, "Guests can't feed dogs through the menu, so keep guest-owned dogs' hunger full.");
 
+            VerboseLog = Config.Bind("Debug", "VerboseLog", true, "Log every request and reply (DEBUG lines). Turn off once everything works.");
+            DLog.Verbose = VerboseLog.Value;
+            DLog.Open(Version);
+            string gameVer = "?";
+            try { gameVer = Application.version; } catch { }
+            DLog.Info("start", $"DogShare {Version} loading (game {gameVer}). Host keys: give={GiveKey.Value}, take back={TakeKey.Value}. MaxDogsPerGuest={MaxPerGuest.Value}, Range={Range.Value}, KeepGuestDogsFed={KeepFed.Value}, VerboseLog={VerboseLog.Value}");
+
             var harmony = new Harmony(Guid);
-            harmony.PatchAll(typeof(Patches));
-            harmony.PatchAll(typeof(GuidPatch));
-            harmony.PatchAll(typeof(ChatPatches));
-            harmony.PatchAll(typeof(GuestPatches));
-            ClassInjector.RegisterTypeInIl2Cpp<DogShareBehaviour>();
-            ClassInjector.RegisterTypeInIl2Cpp<GuestMirror>();
-            AddComponent<DogShareBehaviour>();
-            AddComponent<GuestMirror>();
-            Log.LogInfo($"DogShare {Version} loaded. Host: give={GiveKey.Value} take back={TakeKey.Value}. Guests use the game's own dog prompts.");
+            int ok = 0, failed = 0;
+            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches) })
+            {
+                try
+                {
+                    var before = CountPatched(harmony);
+                    harmony.PatchAll(t);
+                    int n = CountPatched(harmony) - before;
+                    DLog.Info("start", $"Patched {t.Name}: {n} method(s)");
+                    ok++;
+                }
+                catch (Exception e) { failed++; DLog.Error("start", $"Patching {t.Name} FAILED - that part of DogShare won't work", e); }
+            }
+            foreach (var m in harmony.GetPatchedMethods())
+                DLog.Debug("start", $"  hooked {m.DeclaringType?.Name}.{m.Name}");
+            try
+            {
+                ClassInjector.RegisterTypeInIl2Cpp<DogShareBehaviour>();
+                ClassInjector.RegisterTypeInIl2Cpp<GuestMirror>();
+                AddComponent<DogShareBehaviour>();
+                AddComponent<GuestMirror>();
+            }
+            catch (Exception e) { DLog.Error("start", "Couldn't start DogShare's update loop", e); }
+            DLog.Info("start", $"DogShare {Version} loaded ({ok} patch groups ok, {failed} failed). Log file: BepInEx\\DogShare.log");
         }
     }
+
 
     // NetSim.singlePetSession is "true whenever online". It drives CanRescueMorePets (1 vs 3),
     // the pet-limit text, and the freezing of extra pets. Only ever lift it on the host.
@@ -60,7 +86,14 @@ namespace DogShare
         [HarmonyPostfix]
         static void Postfix(ref bool __result)
         {
-            try { if (__result && !NetworkManager.isClient) __result = false; }
+            try
+            {
+                if (__result && !NetworkManager.isClient)
+                {
+                    __result = false;
+                    DLog.Once("singlepet", "host", "Co-op one-dog limit lifted on this host (back to the single-player cap).");
+                }
+            }
             catch { }
         }
     }
@@ -78,7 +111,11 @@ namespace DogShare
             {
                 if (!NetworkManager.isOnline || NetworkManager.isClient) return;
                 var g = DogShareBehaviour.GuestById(__0);
-                if (g != null) __result = g;
+                if (g != null)
+                {
+                    __result = g;
+                    DLog.Throttle("guid|" + __0, 60f, "host", $"Dog leader lookup: answered {DLog.S(__0)} with remote player {DogShareBehaviour.GuestName(g)}");
+                }
             }
             catch { }
         }
@@ -92,16 +129,21 @@ namespace DogShare
         bool _loggedRelinkMiss;
         int _relinkLogs;
 
+        float _nextStatus;
+
         void Update()
         {
             try
             {
+                string role = !NetworkManager.isOnline ? "offline / single-player" : NetworkManager.isClient ? "guest" : "host";
+                DLog.Change("role", "role", "Now " + role);
                 if (!NetworkManager.isOnline || NetworkManager.isClient) return;   // host only
+                if (Time.unscaledTime >= _nextStatus) { _nextStatus = Time.unscaledTime + 30f; Status(); }
                 if (Pressed(Plugin.GiveKey.Value)) Give();
                 else if (Pressed(Plugin.TakeKey.Value)) TakeBack();
                 if (Time.unscaledTime >= _nextTick) { _nextTick = Time.unscaledTime + 2f; Maintain(); }
             }
-            catch (Exception e) { Plugin.L.LogError("Update: " + e); _nextTick = Time.unscaledTime + 10f; }
+            catch (Exception e) { DLog.Error("error", "Host update failed", e); _nextTick = Time.unscaledTime + 10f; }
         }
 
         // ---------------------------------------------------------------- input
@@ -111,7 +153,7 @@ namespace DogShare
             if (!_legacyInputBroken)
             {
                 try { return Input.GetKeyDown(key); }
-                catch { _legacyInputBroken = true; Plugin.L.LogWarning("Legacy input unavailable, using Input System."); }
+                catch { _legacyInputBroken = true; DLog.Info("start", "Legacy input unavailable, using the Input System for keys."); }
             }
             try
             {
@@ -167,7 +209,7 @@ namespace DogShare
                     }
                 }
             }
-            catch (Exception e) { if (!_warnedSync) { _warnedSync = true; Plugin.L.LogWarning("NetPlayerSync lookup failed: " + e.Message); } }
+            catch (Exception e) { if (!_warnedSync) { _warnedSync = true; DLog.Error("error", "Remote player lookup (NetPlayerSync) failed - guests may not be found", e); } }
             foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
                 if (h != null && h.isNetPuppet && h.characterData != null && !string.IsNullOrEmpty(h.characterData.characterId) && seen.Add(h.Pointer))
                     list.Add(h);
@@ -221,7 +263,7 @@ namespace DogShare
 
         internal static void Say(string msg)
         {
-            Plugin.L.LogInfo(msg);
+            DLog.Info("host", msg);
             try { SystemNotificationPanel.ShowNotificationSafe(msg, true); } catch { }
         }
 
@@ -242,9 +284,9 @@ namespace DogShare
                 var sb = new System.Text.StringBuilder($"[diag] localPlayers={players} puppets={puppets} puppetsWithId={withData} remotePlayers={guests.Count} hostId={IdOf(host)} dogs:");
                 foreach (var d in Dogs())
                     sb.Append($" [owner={GuidOf(d)} leader={(d.leaderCharacter == null ? "none" : (Same(d.leaderCharacter, host) ? "host" : "guest"))} dist={(host == null ? -1 : (Pos(d) - Pos(host)).magnitude):0.0}]");
-                Plugin.L.LogInfo(sb.ToString());
+                DLog.Info("host", sb.ToString());
             }
-            catch (Exception e) { Plugin.L.LogWarning("diag failed: " + e.Message); }
+            catch (Exception e) { DLog.Error("error", "diag failed", e); }
         }
 
         // ---------------------------------------------------------------- actions
@@ -267,9 +309,14 @@ namespace DogShare
             int has = dogs.FindAll(d => OwnedBy(d, guest)).Count;
             if (has >= Plugin.MaxPerGuest.Value) { Say($"DogShare: {GuestName(guest)} already has {has} dogs."); return; }
 
+            DLog.Info("host", $"Giving dog {DLog.S(dog.npcData?.npcGUID)} '{dog.npcData?.characterData?.characterName}' to {GuestName(guest)} ({DLog.S(gid)}), distance {(Pos(guest) - here).magnitude:0.0}");
             dog.SetLeader(guest);
             if (GuidOf(dog) != gid)
-                Plugin.L.LogWarning($"SetLeader did not store the guest id (got '{GuidOf(dog)}', expected '{gid}').");
+                DLog.Error("host", $"SetLeader did not store the guest id (got '{GuidOf(dog)}', expected '{gid}') - the dog may not stay with them");
+            else if (!Same(dog.leaderCharacter, guest))
+                DLog.Warn("host", "The dog's leader isn't the guest's character right after SetLeader");
+            else
+                DLog.Info("host", "Dog's owner and leader are now the guest - OK");
             try { PetPanel.NotifyPetRemoved(dog.npcData); } catch { }
             Say($"Gave your dog to {GuestName(guest)} ({has + 1}/{Plugin.MaxPerGuest.Value}).");
         }
@@ -293,9 +340,31 @@ namespace DogShare
             if (dog == null) { Say("DogShare: no guest's dog is close to you."); return; }
             if (!PetSystem.CanRescueMorePets()) { Say("DogShare: you already have the most dogs you can keep."); return; }
 
+            DLog.Info("host", $"Taking back dog {DLog.S(dog.npcData?.npcGUID)} '{dog.npcData?.characterData?.characterName}' from {DLog.S(GuidOf(dog))}");
             dog.SetLeader(host);
             try { PetPanel.NotifyPetChanged(dog.npcData); } catch { }
             Say("DogShare: you took the dog back.");
+        }
+
+        void Status()
+        {
+            try
+            {
+                var host = HostPlayer();
+                var guests = Guests();
+                int mine = 0, guestDogs = 0, linked = 0;
+                foreach (var d in Dogs())
+                {
+                    if (OwnedBy(d, host)) { mine++; continue; }
+                    guestDogs++;
+                    var owner = GuestById(GuidOf(d));
+                    if (owner != null && Same(d.leaderCharacter, owner)) linked++;
+                }
+                var names = new List<string>();
+                foreach (var g in guests) names.Add(GuestName(g));
+                DLog.Change("hoststatus", "status", $"Host: {guests.Count} guest(s) [{string.Join(", ", names)}], my dogs {mine}, guest dogs {guestDogs} ({linked} following their owner here)");
+            }
+            catch (Exception e) { DLog.Error("error", "status", e); }
         }
 
         // Re-link guest dogs to their owner (after a reload / rejoin) and keep them fed.
@@ -321,19 +390,23 @@ namespace DogShare
                     if (lead == null || lead.Pointer != owner.Pointer)
                     {
                         dog.SetLeader(owner);
-                        if (++_relinkLogs <= 20) Plugin.L.LogInfo($"Re-linked a dog to {GuestName(owner)}.");
+                        if (++_relinkLogs <= 20) DLog.Info("host", $"Re-linked dog {DLog.S(dog.npcData?.npcGUID)} to its owner {GuestName(owner)} (leader was {(lead == null ? "none" : "someone else")})");
                     }
                 }
                 else if (!_loggedRelinkMiss && guests.Count > 0)
                 {
                     _loggedRelinkMiss = true;
-                    Plugin.L.LogInfo($"A guest-owned dog's owner ({gid}) isn't in this session.");
+                    DLog.Info("host", $"A guest-owned dog's owner ({DLog.S(gid)}) isn't in this session - it waits until they join.");
                 }
 
                 if (Plugin.KeepFed.Value && max > 0f)
                 {
                     var d = dog.npcData;
-                    if (d != null && d.hunger < max) d.hunger = max;
+                    if (d != null && d.hunger < max)
+                    {
+                        DLog.Throttle("fed|" + d.npcGUID, 300f, "host", $"Topped up hunger of guest dog {DLog.S(d.npcGUID)} ({d.hunger:0}/{max:0})");
+                        d.hunger = max;
+                    }
                 }
             }
         }

@@ -60,7 +60,8 @@ namespace DogShare
         internal static void Send(params object[] parts)
         {
             try { NetChatSync.instance.SendChat(Proto.Join(parts)); }
-            catch (Exception e) { Plugin.L.LogError("send: " + e.Message); }
+            catch (Exception e) { DLog.Error("act", "Couldn't send to the host", e); }
+            if (parts.Length > 0 && Convert.ToString(parts[0]) != "L") DLog.Debug("act", "-> host: " + HostHandler.OpName(parts.Length > 0 ? Convert.ToString(parts[0]) : "?") + (parts.Length > 1 ? " " + string.Join(" ", Array.ConvertAll(parts, x => Convert.ToString(x))) : ""));
         }
 
         internal static void Note(string s)
@@ -84,8 +85,9 @@ namespace DogShare
                     _wasGuest = false;
                     return;
                 }
-                if (!_wasGuest) { _wasGuest = true; _nextProbe = Time.unscaledTime + 8f; }
-                if (string.IsNullOrEmpty(MyId())) return;
+                if (!_wasGuest) { _wasGuest = true; _nextProbe = Time.unscaledTime + 8f; DLog.Info("guest", "Joined a co-op world as a guest - will ask the host about shared dogs in a few seconds"); }
+                if (string.IsNullOrEmpty(MyId())) { DLog.Throttle("noid", 20f, "guest", "Waiting for my character to load"); return; }
+                if (Time.unscaledTime >= _nextStatus) { _nextStatus = Time.unscaledTime + 30f; Status(); }
 
                 float now = Time.unscaledTime;
                 if (_hostHasMod)
@@ -96,23 +98,49 @@ namespace DogShare
                 {
                     // Ask once in a while whether the host runs DogShare. A host without it would show this line in chat, so only 3 tries.
                     _probes++; _nextProbe = now + 30f; Send("L", "1"); _askFull = false;
+                    DLog.Info("guest", $"Asking the host whether it runs DogShare (try {_probes}/3)" + (_probes == 3 ? " - last try; if no answer, the host doesn't have DogShare 1.2+" : ""));
                 }
             }
-            catch (Exception e) { Plugin.L.LogError("guest update: " + e.Message); }
-            try { TickPouch(); } catch (Exception e) { Plugin.L.LogError("saddlebag: " + e.Message); _pouchOpen = null; }
+            catch (Exception e) { DLog.Error("error", "Guest update failed", e); }
+            try { TickPouch(); } catch (Exception e) { DLog.Error("item", "Saddlebag sync failed - stopped syncing it", e); _pouchOpen = null; }
+        }
+
+        static float _nextStatus;
+        static void Status()
+        {
+            int attached = 0;
+            var parts = new List<string>();
+            foreach (var m in ByGuid.Values)
+            {
+                bool on = IsAttached(m);
+                if (on) attached++;
+                parts.Add($"{m.Data.characterData?.characterName ?? m.Handle}: {(on ? "on its stand-in" : "stand-in not here")}{(m.OnPanel ? ", on Teammates" : "")}");
+            }
+            DLog.Change("gueststatus", "status", $"Guest: host runs DogShare={_hostHasMod}, shared dogs {ByGuid.Count} ({attached} attached) [{string.Join("; ", parts)}], saddlebag open={(_pouchOpen != null)}");
+        }
+
+        static bool IsAttached(Mirror m)
+        {
+            try
+            {
+                var c = NetMonsterSync.instance?.ClientGetPuppet(m.NetId)?.TryCast<PetCharacterController>();
+                return c != null && c.npcData != null && c.npcData.Pointer == m.Data.Pointer;
+            }
+            catch { return false; }
         }
 
         // ---------------------------------------------------------------- saddlebag
         internal static void OpenPouch(Mirror m)
         {
             var inv = m.Pet.pouchItem?.inventoryData;
-            if (inv == null) { Note("Your dog isn't wearing a saddlebag."); return; }
+            if (inv == null) { DLog.Info("item", "Open saddlebag: the dog has no saddlebag on"); Note("Your dog isn't wearing a saddlebag."); return; }
             var panel = LootInventoryPanel.instance;
-            if (panel == null) return;
+            if (panel == null) { DLog.Error("item", "Open saddlebag: the game's loot window isn't available"); return; }
             panel.OpenPanel(inv, m.Data.characterData?.characterName ?? "Saddlebag");
             _pouchOpen = m;
             _pouchHash = Proto.Hash(Proto.InvBytes(inv));
             _nextPouchCheck = Time.unscaledTime + 0.5f;
+            DLog.Info("item", $"Opened saddlebag of '{m.Data.characterData?.characterName}' ({HostHandler.CountItems(inv)} item stack(s))");
         }
 
         static bool PouchStillOpen(InventoryData inv)
@@ -141,14 +169,15 @@ namespace DogShare
                 {
                     _pouchHash = h;
                     Proto.SendBlob(t => SendRaw(t), bytes, "U", m.Handle);
+                    DLog.Info("item", $"Saddlebag changed - sent to host ({bytes.Length} bytes, {HostHandler.CountItems(inv)} item stack(s))");
                 }
             }
-            if (!open) { _pouchOpen = null; _pouchClosedAt = Time.unscaledTime; }
+            if (!open) { _pouchOpen = null; _pouchClosedAt = Time.unscaledTime; DLog.Info("item", "Saddlebag closed"); }
         }
 
         static void SendRaw(string text)
         {
-            try { NetChatSync.instance.SendChat(text); } catch (Exception e) { Plugin.L.LogError("send: " + e.Message); }
+            try { NetChatSync.instance.SendChat(text); } catch (Exception e) { DLog.Error("act", "Couldn't send to the host", e); }
         }
 
         internal static void SendItem(byte[] bytes, params object[] head) => Proto.SendBlob(t => SendRaw(t), bytes, head);
@@ -159,11 +188,12 @@ namespace DogShare
             var p = Proto.Split(text);
             if (p.Length < 2) return;
             if (p[1] != Proto.Short(MyId())) return;
-            if (!_hostHasMod) { _hostHasMod = true; Plugin.L.LogInfo("Host runs DogShare - shared dogs enabled."); }
+            if (!_hostHasMod) { _hostHasMod = true; DLog.Info("guest", "Host runs DogShare - shared dogs enabled"); }
+            if (p[0] != "D" && p[0] != "K" && p[0] != "E") DLog.Debug("guest", "<- host: " + HostHandler.OpName(p[0]) + " " + (p[0] == "B" ? p[2] + " " + p[3] + " part " + (p.Length > 6 ? p[5] + "/" + p[6] : "?") : text.Length > 120 ? text.Substring(Proto.Mark.Length, 110) + "..." : text.Substring(Proto.Mark.Length)));
             switch (p[0])
             {
                 case "M":
-                    if (p.Length > 2) Note(p[2]);
+                    if (p.Length > 2) { DLog.Info("guest", "Host says: " + p[2]); Note(p[2]); }
                     break;
                 case "D":
                 {
@@ -201,6 +231,11 @@ namespace DogShare
                 }
                 case "E":
                     if (_incoming.Count > 0 && I(p[2]) != _incomingSeq) return;
+                    {
+                        var names = new List<string>();
+                        foreach (var x in _incoming.Values) names.Add(x.Name);
+                        DLog.Change("hostlist", "guest", $"Host says I own {_incoming.Count} dog(s) here: [{string.Join(", ", names)}]");
+                    }
                     Apply(new List<Incoming>(_incoming.Values));
                     _incoming.Clear(); _incomingSeq = -1;
                     break;
@@ -220,7 +255,7 @@ namespace DogShare
                 if (string.IsNullOrEmpty(d.Guid)) continue;
                 keep.Add(d.Guid);
                 try { Upsert(d, me); }
-                catch (Exception e) { Plugin.L.LogError("mirror " + d.Name + ": " + e); }
+                catch (Exception e) { DLog.Error("guest", "Setting up shared dog '" + d.Name + "' failed", e); }
             }
             foreach (var g in new List<string>(ByGuid.Keys))
                 if (!keep.Contains(g)) Remove(ByGuid[g]);
@@ -237,7 +272,7 @@ namespace DogShare
                 m.Data.npcGUID = d.Guid;
                 ByGuid[d.Guid] = m;
                 ByPtr[m.Data.Pointer] = m;
-                Plugin.L.LogInfo($"Shared dog '{d.Name}' is yours here.");
+                DLog.Info("guest", $"Host says dog '{d.Name}' ({d.Handle}, net id {d.NetId}) is mine - created its pet data here");
             }
             m.Handle = d.Handle; m.NetId = d.NetId;
             m.Data.leaderCharacterGUID = me;
@@ -261,8 +296,10 @@ namespace DogShare
                 var sync = NetMonsterSync.instance;
                 var c = sync != null && d.NetId >= 0 ? sync.ClientGetPuppet(d.NetId) : null;
                 pc = c?.TryCast<PetCharacterController>();
+                if (c != null && pc == null) DLog.Change("cast|" + d.Guid, "guest", $"'{d.Name}': the object with net id {d.NetId} isn't a dog on this PC");
             }
-            catch { }
+            catch (Exception e) { DLog.Error("guest", "Looking up the stand-in dog failed", e); }
+            DLog.Change("found|" + d.Guid, "guest", pc != null ? $"'{d.Name}': found its stand-in on this PC (net id {d.NetId})" : $"'{d.Name}': its stand-in isn't on this PC right now (net id {d.NetId}; it shows up when it's near you)");
 
             if (pc != null)
             {
@@ -279,8 +316,13 @@ namespace DogShare
                     agent.npcData = m.Data;
                     agent.enabled = false;            // the host runs this dog's AI, not us
                     m.AttachedTo = pc.Pointer;
-                    try { pc.RefreshInteracts(); } catch { }
+                    try { pc.RefreshInteracts(); } catch (Exception e) { DLog.Error("guest", "RefreshInteracts failed", e); }
+                    bool readsBack = pc.npcData != null && pc.npcData.Pointer == m.Data.Pointer;
+                    bool owned = false; try { owned = pc.IsOwnedByLocalPlayer(); } catch { }
+                    DLog.Info("guest", $"'{d.Name}': attached pet data to its stand-in - game sees it: {(readsBack ? "yes" : "NO")}, owned by me: {(owned ? "yes" : "NO")}" +
+                        (readsBack && owned ? " -> the Commands / Pet prompt should appear when you walk up to it" : " -> the game's prompts won't show for it"));
                 }
+                else if (agent == null) DLog.Change("noagent|" + d.Guid, "guest", $"'{d.Name}': its stand-in has no pet AI component - can't attach");
             }
             else if (m.Data.characterData == null)
             {
@@ -291,7 +333,14 @@ namespace DogShare
 
             if (!m.OnPanel)
             {
-                try { TeamNPCPanel.instance?.AddNPC(m.Data); m.OnPanel = true; } catch (Exception e) { Plugin.L.LogWarning("team card: " + e.Message); m.OnPanel = true; }
+                try
+                {
+                    var panel = TeamNPCPanel.instance;
+                    if (panel == null) DLog.Warn("guest", "Teammates panel isn't available yet");
+                    else { panel.AddNPC(m.Data); DLog.Info("guest", $"'{d.Name}': added to the Teammates panel"); }
+                    m.OnPanel = true;
+                }
+                catch (Exception e) { DLog.Error("guest", $"'{d.Name}': adding to the Teammates panel failed", e); m.OnPanel = true; }
             }
             try { PetPanel.NotifyPetChanged(m.Data); } catch { }
         }
@@ -305,7 +354,9 @@ namespace DogShare
                 if (m.GearHash.TryGetValue(slot, out var old) && old == h) continue;
                 if (slot == "p" && (_pouchOpen == m || Time.unscaledTime - _pouchClosedAt < 2f)) continue;   // don't swap a bag that's open here
                 ItemData item = null;
-                try { item = Proto.ItemFrom(bytes); } catch (Exception e) { Plugin.L.LogWarning("gear copy: " + e.Message); continue; }
+                try { item = Proto.ItemFrom(bytes); } catch (Exception e) { DLog.Error("item", $"Couldn't read the {HostHandler.SlotName(slot)} copy from the host", e); continue; }
+                if (bytes.Length > 0 && item == null) { DLog.Error("item", $"The {HostHandler.SlotName(slot)} copy from the host didn't decode ({bytes.Length} bytes)"); continue; }
+                DLog.Info("item", $"'{m.Data.characterData?.characterName ?? m.Handle}' {HostHandler.SlotName(slot)}: {(item == null ? "empty" : "item " + item.itemId)} (copy from host{(slot == "p" && item?.inventoryData != null ? ", " + HostHandler.CountItems(item.inventoryData) + " stack(s) inside" : "")})");
                 if (slot == "c") m.Pet.collarItem = item;
                 else if (slot == "v") m.Pet.vestItem = item;
                 else m.Pet.pouchItem = item;
@@ -321,6 +372,7 @@ namespace DogShare
             m.GearHash[slot] = Proto.Hash(bytes);
             _gear[m.Handle + "|" + slot] = bytes;
             SendItem(bytes, "G", m.Handle, slot);
+            DLog.Info("item", $"Changed '{m.Data.characterData?.characterName}' {HostHandler.SlotName(slot)} here -> {(item == null ? "empty (item back in my backpack)" : "item " + item.itemId)}; sent to host ({bytes.Length} bytes)");
             if (slot == "p" && _pouchOpen == m && item == null) _pouchOpen = null;
         }
 
@@ -339,7 +391,7 @@ namespace DogShare
             try { PetPanel.NotifyPetRemoved(m.Data); } catch { }
             ByGuid.Remove(m.Guid);
             ByPtr.Remove(m.Data.Pointer);
-            Plugin.L.LogInfo("A shared dog is no longer yours here.");
+            DLog.Info("guest", $"Dog '{m.Data.characterData?.characterName ?? m.Handle}' is no longer mine here - removed its pet data");
         }
 
         static void DetachAll()
@@ -366,6 +418,7 @@ namespace DogShare
             if (cmd == null) return false;
             int dot = cmd.LastIndexOf('.');
             if (dot >= 0) cmd = cmd.Substring(dot + 1);
+            DLog.Info("act", $"'{m.Data.characterData?.characterName}': game menu chose '{cmd}'");
             if (PetCommands.Contains(cmd))
             {
                 GuestMirror.Send("C", m.Handle, cmd);
@@ -378,6 +431,7 @@ namespace DogShare
                 try { PetPanel.NotifyPetChanged(m.Data); } catch { }
             }
             else if (cmd == "OpenPouch") GuestMirror.OpenPouch(m);
+            else DLog.Warn("act", $"'{cmd}' isn't supported for shared dogs - ignored");
             return true;
         }
 
@@ -418,6 +472,7 @@ namespace DogShare
             {
                 var m = GuestMirror.Of(__instance?.npcData);
                 if (m == null) return true;
+                DLog.Info("act", $"Petted '{m.Data.characterData?.characterName}' - asking host for the affection");
                 GuestMirror.Send("P", m.Handle);
                 return false;
             }
@@ -441,15 +496,16 @@ namespace DogShare
                 if (m == null) return true;
                 var item = toolData?.itemData;
                 var me = LocalCharacter();
-                if (item == null || me == null) return false;
+                if (item == null || me == null) { DLog.Warn("item", "Feed: no item or no local character"); return false; }
                 var bytes = Proto.ItemBytes(item);
-                if (!BasicCharacterController.ConsumeOneItemFromCharacter(me, item, true)) return false;
+                if (!BasicCharacterController.ConsumeOneItemFromCharacter(me, item, true)) { DLog.Warn("item", $"Feed: couldn't take item {item.itemId} from my backpack - nothing sent"); return false; }
                 GuestMirror.SendItem(bytes, "F", m.Handle);
+                DLog.Info("item", $"Fed '{m.Data.characterData?.characterName}' item {item.itemId}: took 1 from my backpack, sent to host ({bytes.Length} bytes)");
                 try { GameController.instance.RefreshInventoryPanels(); } catch { }
                 try { __instance.PlayHappy(); } catch { }
                 return false;
             }
-            catch (Exception e) { Plugin.L.LogError("feed: " + e.Message); return false; }
+            catch (Exception e) { DLog.Error("item", "Feed failed", e); return false; }
         }
 
         [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.OnSelectFirstAidTool))]
@@ -462,14 +518,15 @@ namespace DogShare
                 if (m == null) return true;
                 var item = toolData?.itemData;
                 var me = LocalCharacter();
-                if (item == null || me == null) return false;
+                if (item == null || me == null) { DLog.Warn("item", "First aid: no item or no local character"); return false; }
                 int id = item.itemId;
-                if (!BasicCharacterController.ConsumeOneItemFromCharacter(me, item, true)) return false;
+                if (!BasicCharacterController.ConsumeOneItemFromCharacter(me, item, true)) { DLog.Warn("item", $"First aid: couldn't take item {id} from my backpack - nothing sent"); return false; }
                 GuestMirror.Send("A", m.Handle, id);
+                DLog.Info("item", $"First aid on '{m.Data.characterData?.characterName}' with item {id}: took 1 from my backpack, asked host to heal");
                 try { GameController.instance.RefreshInventoryPanels(); } catch { }
                 return false;
             }
-            catch (Exception e) { Plugin.L.LogError("first aid: " + e.Message); return false; }
+            catch (Exception e) { DLog.Error("item", "First aid failed", e); return false; }
         }
 
         // Gear: the game's own pet panel moves the item between your backpack and your copy of the
@@ -499,7 +556,7 @@ namespace DogShare
         static void EquipPost(PetPanel __instance, string[] __state)
         {
             if (__state == null) return;
-            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) SendGearChanges(m, __state); } catch (Exception e) { Plugin.L.LogError("equip: " + e.Message); }
+            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) SendGearChanges(m, __state); } catch (Exception e) { DLog.Error("item", "Equip failed", e); }
         }
 
         [HarmonyPatch(typeof(PetPanel), nameof(PetPanel.OnEquipSlotClick))]
@@ -515,7 +572,7 @@ namespace DogShare
         static void SlotPost(PetPanel __instance, string[] __state)
         {
             if (__state == null) return;
-            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) SendGearChanges(m, __state); } catch (Exception e) { Plugin.L.LogError("unequip: " + e.Message); }
+            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) SendGearChanges(m, __state); } catch (Exception e) { DLog.Error("item", "Unequip failed", e); }
         }
 
         [HarmonyPatch(typeof(PetPanel), nameof(PetPanel.OnUpgradeSkillClick))]
@@ -526,6 +583,7 @@ namespace DogShare
             {
                 var m = GuestMirror.Of(__instance?.boundPet);
                 if (m == null) return true;
+                DLog.Info("act", $"'{m.Data.characterData?.characterName}': upgrade skill {skillId}");
                 GuestMirror.Send("S", m.Handle, skillId);
                 return false;
             }
@@ -541,7 +599,7 @@ namespace DogShare
                 var m = GuestMirror.Of(__instance?.boundPet);
                 if (m == null) return;
                 var name = m.Data.characterData?.characterName;
-                if (!string.IsNullOrEmpty(name)) GuestMirror.Send("N", m.Handle, Proto.Clean(name, 20));
+                if (!string.IsNullOrEmpty(name)) { DLog.Info("act", $"Renamed shared dog to '{name}'"); GuestMirror.Send("N", m.Handle, Proto.Clean(name, 20)); }
             }
             catch { }
         }
@@ -554,6 +612,7 @@ namespace DogShare
             {
                 var m = GuestMirror.Of(npcData);
                 if (m == null) return true;
+                DLog.Info("act", $"Release '{m.Data.characterData?.characterName}'");
                 GuestMirror.Send("R", m.Handle);
                 __result = true;
                 return false;
@@ -575,6 +634,7 @@ namespace DogShare
             try
             {
                 if (!GuestMirror.IsGuest() || GuestMirror.ByPtr.Count == 0) return;
+                DLog.Change("petlists", "guest", $"The game's pet lists now include my {GuestMirror.ByPtr.Count} shared dog(s)");
                 if (list == null) list = new Il2CppSystem.Collections.Generic.List<GOAPNPCData>();
                 foreach (var d in GuestMirror.All())
                 {

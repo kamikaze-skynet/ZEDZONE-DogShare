@@ -43,6 +43,25 @@ Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare 1.0.
 | `Rules.MaxDogsPerGuest` | `3` | How many dogs each guest can be given. |
 | `Rules.Range` | `8` | How close the guest / dog has to be. |
 | `Rules.KeepGuestDogsFed` | `true` | Keep guest-owned dogs' hunger full. |
+| `Debug.VerboseLog` | `true` | Also log every request and reply (DEBUG lines). |
+
+## Logs (for testing and bug reports)
+
+DogShare writes its own log to **`BepInEx\DogShare.log`** in the game folder (rewritten every launch), and the same lines go to `BepInEx\LogOutput.log`. Each line has a time and a category:
+
+| Category | What it covers |
+|---|---|
+| `start` | Loading, which game methods were hooked, and anything that failed to hook |
+| `role` | Whether you're offline, the host or a guest |
+| `host` | Giving / taking back dogs, re-linking a guest's dog, hunger top-ups |
+| `req` | Each request the host got from a guest, and its result |
+| `send` | What the host sent back (dog lists, gear copies) |
+| `guest` | On a guest's PC: shared dogs found, pet data attached, Teammates card |
+| `act` | On a guest's PC: each action sent to the host (orders, petting, skills, rename) |
+| `item` | Feeding, first aid, gear and saddlebag items moving between PCs |
+| `status` | A summary every 30 s (only when something changed) |
+
+Failures are logged as `ERROR` with the reason. `Debug.VerboseLog` (default on) adds the raw requests and replies; turn it off once everything works. To report a problem, send `DogShare.log` from both the host and the guest.
 
 ## How it works
 

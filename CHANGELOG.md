@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.1
+- Detailed logging on host and guest: its own `BepInEx\DogShare.log` plus `LogOutput.log`, with a category and timestamp per line, a check of every game hook at start-up, each request and its result, items moving between PCs, and a status summary every 30 s. `Debug.VerboseLog` adds raw requests/replies.
+
 ## 1.3.0
 - Guests can now feed their dog and give it first aid with the game's own pickers; the item comes out of their backpack and the host feeds / heals the real dog.
 - Guests can equip and unequip the collar, vest and saddlebag from the pet panel; items move between their backpack and the dog.

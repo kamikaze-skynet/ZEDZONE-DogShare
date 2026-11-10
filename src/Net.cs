@@ -120,7 +120,12 @@ namespace DogShare
         // Hide marked lines everywhere (local echo, relays, speech bubbles).
         [HarmonyPatch(typeof(NetChatSync), nameof(NetChatSync.Append))]
         [HarmonyPrefix]
-        static bool Append(string text) => !Proto.Is(text);
+        static bool Append(string text)
+        {
+            if (!Proto.Is(text)) return true;
+            DLog.Once("hidechat", "start", "Hiding DogShare's chat lines works");
+            return false;
+        }
 
         // Host: requests from guests.
         [HarmonyPatch(typeof(NetChatSync), nameof(NetChatSync.OnHostReceive))]
@@ -133,7 +138,7 @@ namespace DogShare
                 if (!Proto.Is(text)) return true;
                 HostHandler.Handle(text, peer);
             }
-            catch (Exception e) { Plugin.L.LogError("host request: " + e); }
+            catch (Exception e) { DLog.Error("error", "Handling a guest request failed", e); }
             return false;   // never relay or show
         }
 
@@ -148,7 +153,7 @@ namespace DogShare
                 if (!Proto.Is(text)) return true;
                 GuestMirror.OnHostMessage(text);
             }
-            catch (Exception e) { Plugin.L.LogError("host reply: " + e); }
+            catch (Exception e) { DLog.Error("error", "Handling a host reply failed", e); }
             return false;
         }
     }
@@ -165,12 +170,14 @@ namespace DogShare
             string charId = null; bool hardcore = false;
             if (!nm.TryGetPeerCharacter(peer, out charId, out hardcore) || string.IsNullOrEmpty(charId))
             {
-                Plugin.L.LogWarning("DogShare request from a peer with no character yet.");
+                DLog.Throttle("nochar", 30f, "req", "Got a DogShare request from a player who has no character yet - ignored");
                 return;
             }
             var p = Proto.Split(text);
             string op = p[0];
             string to = Proto.Short(charId);
+            string who = PeerName(charId);
+            if (_moddedGuests.Add(charId)) DLog.Info("req", $"{who} ({to}) runs DogShare - answering their requests");
 
             if (op == "L")
             {
@@ -184,10 +191,17 @@ namespace DogShare
             if (op == "F" || op == "G" || op == "U")
             {
                 if (!Proto.Collect(charId, p, out blob)) return;
+                DLog.Debug("req", $"{who}: received {OpName(op)} data, {blob?.Length ?? 0} bytes");
             }
 
             var dog = FindDog(charId, p[1]);
-            if (dog == null) { Reply(peer, Proto.Join("M", to, "That dog isn't yours any more.")); SendList(peer, charId); return; }
+            if (dog == null)
+            {
+                DLog.Warn("req", $"{who} asked to {OpName(op)} dog {p[1]}, but no dog of theirs has that id here");
+                Reply(peer, Proto.Join("M", to, "That dog isn't yours any more.")); SendList(peer, charId); return;
+            }
+            string dogName = dog.npcData?.characterData?.characterName;
+            DLog.Info("req", $"{who} -> {OpName(op)}{(op == "C" && p.Length > 2 ? " " + p[2] : op == "S" && p.Length > 2 ? " skill " + p[2] : op == "G" && p.Length > 2 ? " slot " + p[2] : op == "A" && p.Length > 2 ? " item " + p[2] : "")} on '{dogName}' ({p[1]})");
 
             string note = null;
             switch (op)
@@ -202,9 +216,24 @@ namespace DogShare
                 case "G": note = SetGear(dog, p.Length > 2 ? p[2] : "", blob, charId); break;
                 case "U": note = SetPouch(dog, blob, charId); break;
             }
-            if (!string.IsNullOrEmpty(note)) Reply(peer, Proto.Join("M", to, Proto.Clean(note, 150)));
+            if (!string.IsNullOrEmpty(note)) { DLog.Info("req", $"  result for {who}: {note}"); Reply(peer, Proto.Join("M", to, Proto.Clean(note, 150))); }
+            else DLog.Debug("req", "  done");
             SendList(peer, charId);
         }
+
+        static readonly HashSet<string> _moddedGuests = new HashSet<string>();
+
+        static string PeerName(string charId)
+        {
+            try { var g = DogShareBehaviour.GuestById(charId); if (g != null) return DogShareBehaviour.GuestName(g); } catch { }
+            return "guest " + Proto.Short(charId);
+        }
+
+        internal static string OpName(string op) => op switch
+        {
+            "L" => "list dogs", "C" => "command", "P" => "pet", "N" => "rename", "S" => "upgrade skill", "R" => "release",
+            "F" => "feed", "A" => "first aid", "G" => "set gear", "U" => "update saddlebag", _ => op
+        };
 
         static GOAPAgent_Pet FindDog(string ownerId, string handle)
         {
@@ -221,8 +250,10 @@ namespace DogShare
 
         static string Command(GOAPAgent_Pet dog, string cmd)
         {
-            if (!Commands.Contains(cmd)) return null;
+            if (!Commands.Contains(cmd)) { DLog.Warn("req", $"  unknown command '{cmd}' ignored"); return null; }
             dog.ExecutePetCommand(cmd);
+            var pd = dog.npcData?.petData;
+            DLog.Info("req", $"  now: {(pd == null ? "?" : (pd.isStayCommand ? "Stay" : "Follow") + ", combat mode " + pd.combatMode)}");
             Changed(dog);
             return null;
         }
@@ -248,7 +279,9 @@ namespace DogShare
             if (pd.isUnconscious) return "Your dog is unconscious.";
             if (!PetReady(dog)) return "Your dog was petted a moment ago. Try again in a few minutes.";
             pd.lastPetInGameTime = Now();
+            float before = pd.affectionXp;
             pc.AddAffection(PetSystem.affectionPet);
+            DLog.Info("req", $"  affection {before:0.#} -> {pd.affectionXp:0.#} (level {pd.affectionLevel})");
             try { pc.PlayHappy(); } catch { }
             Changed(dog);
             return "Good dog!";
@@ -302,8 +335,11 @@ namespace DogShare
         static string Feed(GOAPAgent_Pet dog, byte[] blob)
         {
             var pc = dog.pet; var item = Proto.ItemFrom(blob);
-            if (pc == null || item == null) return null;
+            if (pc == null || item == null) { DLog.Error("item", $"  feed: couldn't read the food item ({blob?.Length ?? 0} bytes)"); return null; }
+            var pd = dog.npcData?.petData;
+            float before = pd?.affectionXp ?? 0f;
             pc.EatFood(item, PetSystem.affectionFeed, true);
+            DLog.Info("item", $"  fed item {item.itemId}; affection {before:0.#} -> {pd?.affectionXp ?? 0f:0.#}, hunger {dog.npcData?.hunger ?? 0f:0}");
             Changed(dog);
             return null;
         }
@@ -313,8 +349,10 @@ namespace DogShare
             var pc = dog.pet; var pd = dog.npcData?.petData;
             if (pc == null || pd == null || !int.TryParse(idText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id)) return null;
             float pct = PetSystem.GetFirstAidHealPercent(id);
+            bool wasOut = pd.isUnconscious;
             pc.HealByFirstAid(pct);
-            if (pd.isUnconscious) { try { pc.WakeUp(pct, true); } catch { } }
+            if (pd.isUnconscious) { try { pc.WakeUp(pct, true); } catch (Exception e) { DLog.Error("item", "  WakeUp failed", e); } }
+            DLog.Info("item", $"  first aid with item {id}: heal {pct:0.##}, {(wasOut ? (pd.isUnconscious ? "still unconscious" : "woke up") : "was awake")}");
             Changed(dog);
             return null;
         }
@@ -326,6 +364,9 @@ namespace DogShare
             var pc = dog.pet; var pd = dog.npcData?.petData;
             if (pc == null || pd == null) return null;
             var item = Proto.ItemFrom(blob);
+            if (blob != null && blob.Length > 0 && item == null) { DLog.Error("item", $"  set gear {slot}: couldn't read the item ({blob.Length} bytes) - slot left unchanged"); return null; }
+            var oldItem = GearItem(pd, slot);
+            DLog.Info("item", $"  gear slot {SlotName(slot)}: {(oldItem == null ? "empty" : "item " + oldItem.itemId)} -> {(item == null ? "empty" : "item " + item.itemId)}");
             switch (slot)
             {
                 case "c": pd.collarItem = item; break;
@@ -345,12 +386,20 @@ namespace DogShare
         {
             var pd = dog.npcData?.petData;
             var inv = pd?.pouchItem?.inventoryData;
-            if (inv == null || blob == null) return null;
+            if (inv == null || blob == null) { DLog.Warn("item", "  saddlebag update ignored: the dog has no saddlebag here"); return null; }
             var incoming = NetContainerSync.DeserializeInventory(blob);
-            if (incoming == null) return null;
+            if (incoming == null) { DLog.Error("item", $"  saddlebag: couldn't read the contents ({blob.Length} bytes) - left unchanged"); return null; }
             NetItemSync.ReplaceInventoryContents(inv, incoming);
+            DLog.Info("item", $"  saddlebag contents replaced ({blob.Length} bytes, {CountItems(inv)} item stack(s) now)");
             RememberGear(charId, dog.npcData.npcGUID, "p", Proto.ItemBytes(pd.pouchItem));
             return null;
+        }
+
+        internal static string SlotName(string slot) => slot == "c" ? "collar" : slot == "v" ? "vest" : slot == "p" ? "saddlebag" : slot;
+
+        internal static int CountItems(InventoryData inv)
+        {
+            try { var l = inv?.itemList; return l == null ? 0 : l.Count; } catch { return -1; }
         }
 
         internal static ItemData GearItem(PetData pd, string slot) =>
@@ -370,10 +419,12 @@ namespace DogShare
             foreach (var slot in new[] { "c", "v", "p" })
             {
                 byte[] bytes;
-                try { bytes = Proto.ItemBytes(GearItem(pd, slot)); } catch (Exception e) { Plugin.L.LogWarning("gear " + slot + ": " + e.Message); continue; }
+                try { bytes = Proto.ItemBytes(GearItem(pd, slot)); } catch (Exception e) { DLog.Error("send", "Couldn't read gear slot " + SlotName(slot), e); continue; }
                 string key = charId + "|" + n.npcGUID + "|" + slot, h = Proto.Hash(bytes);
                 if (_sentGear.TryGetValue(key, out var old) && old == h) continue;
                 _sentGear[key] = h;
+                var it = GearItem(pd, slot);
+                DLog.Info("send", $"Gear copy to {PeerName(charId)}: '{n.characterData?.characterName}' {SlotName(slot)} = {(it == null ? "empty" : "item " + it.itemId)} ({bytes.Length} bytes)");
                 Proto.SendBlob(t => Reply(peer, t), bytes, "B", to, Proto.Short(n.npcGUID), slot);
             }
         }
@@ -395,7 +446,8 @@ namespace DogShare
                 if (pd == null) continue;
                 string h = Proto.Short(n.npcGUID);
                 int netId = -1;
-                try { var sync = NetMonsterSync.instance; if (sync != null && d.pet != null) sync.HostTryGetNetId(d.pet, out netId); } catch { }
+                try { var sync = NetMonsterSync.instance; if (sync != null && d.pet != null) sync.HostTryGetNetId(d.pet, out netId); } catch (Exception e) { DLog.Error("send", "net id lookup failed", e); }
+                if (netId < 0) DLog.Throttle("nonet|" + n.npcGUID, 60f, "send", $"Dog '{n.characterData?.characterName}' has no network id yet - the guest can't see it until it's near them");
                 Reply(peer, Proto.Join("D", to, seq, mine.Count, h, n.npcGUID, netId,
                     Proto.Clean(n.characterData?.characterName, 20), pd.breedId, pd.affectionLevel,
                     pd.affectionXp.ToString("0.##", CultureInfo.InvariantCulture),
@@ -418,6 +470,9 @@ namespace DogShare
                 SendGear(peer, charId, to, d);
             }
             Reply(peer, Proto.Join("E", to, seq));
+            var names = new List<string>();
+            foreach (var d in mine) names.Add(d.npcData?.characterData?.characterName ?? "?");
+            DLog.Change("list|" + charId, "send", $"{PeerName(charId)} owns {mine.Count} dog(s) here: [{string.Join(", ", names)}]");
         }
 
         static bool _sendToBroken;
@@ -430,16 +485,17 @@ namespace DogShare
                 {
                     var msg = new MsgChat { senderId = 0, senderName = "", text = text };
                     NetworkManager.instance.SendTo(peer, msg, DeliveryMethod.ReliableOrdered, 0);
+                    DLog.Once("sendto", "send", "Direct replies to guests work (NetworkManager.SendTo)");
                     return;
                 }
                 catch (Exception e)
                 {
                     _sendToBroken = true;
-                    Plugin.L.LogWarning("Direct reply failed, using chat broadcast instead: " + e.Message);
+                    DLog.Error("send", "Direct reply to a guest failed - falling back to chat broadcast (guests without DogShare would see these lines)", e);
                 }
             }
             // Fallback: normal chat broadcast. Guests with DogShare hide it; guests without it would see the line.
-            try { NetChatSync.instance.SendChat(text); } catch (Exception e) { Plugin.L.LogError("reply: " + e.Message); }
+            try { NetChatSync.instance.SendChat(text); } catch (Exception e) { DLog.Error("send", "Reply failed", e); }
         }
     }
 }
