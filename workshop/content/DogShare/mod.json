@@ -1,7 +1,7 @@
 {
     "name": "DogShare",
-    "version": "1.0.0",
+    "version": "1.1.1",
     "author": "girthy_mods",
-    "description": "Co-op dogs for guests: the host can keep 3 dogs again and hand dogs to other players (F7 give, F8 take back). Host-only.",
+    "description": "Co-op dogs for guests: the host can keep 3 dogs again and hand dogs to other players (F7 give, F8 take back, F6 guest dog menu).",
     "enabled": true
 }

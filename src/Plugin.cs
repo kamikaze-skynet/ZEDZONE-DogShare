@@ -11,7 +11,8 @@ using ZedZone.Net;
 
 namespace DogShare
 {
-    // HOST-ONLY mod. Guests don't need it.
+    // Host: lifts the one-pet co-op cap, gives / takes back dogs, runs guest dog commands.
+    // Guest: F6 menu for the dogs the host gave you (talks to the host over hidden chat lines).
     //  * Lifts the "only one pet in a co-op session" rule on the host (back to the single-player cap).
     //  * F7 near a guest: hands the dog closest to you to that guest (max 3 per guest).
     //  * F8 near a guest's dog: takes it back.
@@ -20,10 +21,10 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.1";
 
         internal static ManualLogSource L;
-        internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
+        internal static ConfigEntry<KeyCode> GiveKey, TakeKey, MenuKey;
         internal static ConfigEntry<int> MaxPerGuest;
         internal static ConfigEntry<float> Range;
         internal static ConfigEntry<bool> KeepFed;
@@ -37,10 +38,16 @@ namespace DogShare
             Range = Config.Bind("Rules", "Range", 8f, "How close (in game units) the guest / dog must be to the host.");
             KeepFed = Config.Bind("Rules", "KeepGuestDogsFed", true, "Guests can't feed dogs through the menu, so keep guest-owned dogs' hunger full.");
 
-            new Harmony(Guid).PatchAll(typeof(Patches));
+            var harmony = new Harmony(Guid);
+            harmony.PatchAll(typeof(Patches));
+            harmony.PatchAll(typeof(GuidPatch));
+            harmony.PatchAll(typeof(ChatPatches));
+            MenuKey = Config.Bind("Keys", "DogMenuKey", KeyCode.F6, "Guest: open the menu for the dogs the host gave you.");
             ClassInjector.RegisterTypeInIl2Cpp<DogShareBehaviour>();
+            ClassInjector.RegisterTypeInIl2Cpp<GuestDogMenu>();
             AddComponent<DogShareBehaviour>();
-            Log.LogInfo($"DogShare {Version} loaded (host-only). Give={GiveKey.Value} TakeBack={TakeKey.Value}");
+            AddComponent<GuestDogMenu>();
+            Log.LogInfo($"DogShare {Version} loaded. Host: give={GiveKey.Value} take back={TakeKey.Value}. Guest: menu={MenuKey.Value}");
         }
     }
 
@@ -57,12 +64,32 @@ namespace DogShare
         }
     }
 
+    // The dog AI re-resolves its leader every update with GameController.GetCharacterByGUID, which
+    // only knows local characters. On the host, also answer with remote players so a guest stays the leader.
+    [HarmonyPatch(typeof(GameController), nameof(GameController.GetCharacterByGUID))]
+    internal static class GuidPatch
+    {
+        [HarmonyPostfix]
+        static void Postfix(string __0, ref BasicCharacterController __result)
+        {
+            if (__result != null || string.IsNullOrEmpty(__0)) return;
+            try
+            {
+                if (!NetworkManager.isOnline || NetworkManager.isClient) return;
+                var g = DogShareBehaviour.GuestById(__0);
+                if (g != null) __result = g;
+            }
+            catch { }
+        }
+    }
+
     public class DogShareBehaviour : MonoBehaviour
     {
         public DogShareBehaviour(IntPtr ptr) : base(ptr) { }
 
         float _nextTick;
         bool _loggedRelinkMiss;
+        int _relinkLogs;
 
         void Update()
         {
@@ -78,7 +105,7 @@ namespace DogShare
 
         // ---------------------------------------------------------------- input
         static bool _legacyInputBroken;
-        static bool Pressed(KeyCode key)
+        internal static bool Pressed(KeyCode key)
         {
             if (!_legacyInputBroken)
             {
@@ -105,23 +132,56 @@ namespace DogShare
         }
 
         // ---------------------------------------------------------------- world queries
-        static HumanCharacterController HostPlayer()
+        internal static HumanCharacterController HostPlayer()
         {
+            HashSet<IntPtr> remote = null;
             foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
-                if (h != null && h.isPlayer && !h.isNetPuppet) return h;
+            {
+                if (h == null || !h.isPlayer || h.isNetPuppet) continue;
+                if (remote == null) { remote = new HashSet<IntPtr>(); foreach (var g in Guests()) remote.Add(g.Pointer); }
+                if (!remote.Contains(h.Pointer)) return h;
+            }
             return null;
         }
 
-        static List<HumanCharacterController> Guests()
+        // Remote players' characters, from the game's own remote-player table (NetPlayerSync),
+        // plus any stand-in characters flagged as net puppets.
+        internal static List<HumanCharacterController> Guests()
         {
             var list = new List<HumanCharacterController>();
+            var seen = new HashSet<IntPtr>();
+            try
+            {
+                var sync = NetPlayerSync.instance;
+                if (sync != null)
+                {
+                    var ids = new Il2CppSystem.Collections.Generic.List<int>();
+                    sync.HostCollectRemotePlayerIds(ids);
+                    for (int i = 0; i < ids.Count; i++)
+                    {
+                        HumanCharacterController c = null;
+                        if (!sync.TryGetRemoteController(ids[i], out c) || c == null) continue;
+                        if (c.characterData == null || string.IsNullOrEmpty(c.characterData.characterId)) continue;
+                        if (seen.Add(c.Pointer)) list.Add(c);
+                    }
+                }
+            }
+            catch (Exception e) { if (!_warnedSync) { _warnedSync = true; Plugin.L.LogWarning("NetPlayerSync lookup failed: " + e.Message); } }
             foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
-                if (h != null && h.isNetPuppet && h.characterData != null && !string.IsNullOrEmpty(h.characterData.characterId))
+                if (h != null && h.isNetPuppet && h.characterData != null && !string.IsNullOrEmpty(h.characterData.characterId) && seen.Add(h.Pointer))
                     list.Add(h);
             return list;
         }
+        static bool _warnedSync;
 
-        static List<GOAPAgent_Pet> Dogs()
+        internal static HumanCharacterController GuestById(string characterId)
+        {
+            if (string.IsNullOrEmpty(characterId)) return null;
+            foreach (var g in Guests()) if (IdOf(g) == characterId) return g;
+            return null;
+        }
+
+        internal static List<GOAPAgent_Pet> Dogs()
         {
             var list = new List<GOAPAgent_Pet>();
             foreach (var p in UnityEngine.Object.FindObjectsOfType<GOAPAgent_Pet>())
@@ -134,12 +194,12 @@ namespace DogShare
             return list;
         }
 
-        static Vector2 Pos(Component c) => c.transform.position;
-        static bool Same(UnityEngine.Object a, UnityEngine.Object b) => a != null && b != null && a.Pointer == b.Pointer;
-        static bool OwnedBy(GOAPAgent_Pet d, HumanCharacterController who)
+        internal static Vector2 Pos(Component c) => c.transform.position;
+        internal static bool Same(UnityEngine.Object a, UnityEngine.Object b) => a != null && b != null && a.Pointer == b.Pointer;
+        internal static bool OwnedBy(GOAPAgent_Pet d, HumanCharacterController who)
             => Same(d.leaderCharacter, who) || (!string.IsNullOrEmpty(IdOf(who)) && GuidOf(d) == IdOf(who));
-        static string GuidOf(GOAPAgent_Pet p) => p.npcData?.leaderCharacterGUID;
-        static string IdOf(HumanCharacterController h) => h?.characterData?.characterId;
+        internal static string GuidOf(GOAPAgent_Pet p) => p.npcData?.leaderCharacterGUID;
+        internal static string IdOf(HumanCharacterController h) => h?.characterData?.characterId;
 
         static T Nearest<T>(IEnumerable<T> items, Vector2 from, float range) where T : Component
         {
@@ -152,13 +212,13 @@ namespace DogShare
             return best;
         }
 
-        static string GuestName(HumanCharacterController g)
+        internal static string GuestName(HumanCharacterController g)
         {
             try { var n = g.characterData.characterName; if (!string.IsNullOrEmpty(n)) return n; } catch { }
             return "that player";
         }
 
-        static void Say(string msg)
+        internal static void Say(string msg)
         {
             Plugin.L.LogInfo(msg);
             try { SystemNotificationPanel.ShowNotificationSafe(msg, true); } catch { }
@@ -177,9 +237,10 @@ namespace DogShare
                     if (h.isPlayer && !h.isNetPuppet) players++;
                 }
                 var host = HostPlayer();
-                var sb = new System.Text.StringBuilder($"[diag] localPlayers={players} puppets={puppets} puppetsWithId={withData} hostId={IdOf(host)} dogs:");
+                var guests = Guests();
+                var sb = new System.Text.StringBuilder($"[diag] localPlayers={players} puppets={puppets} puppetsWithId={withData} remotePlayers={guests.Count} hostId={IdOf(host)} dogs:");
                 foreach (var d in Dogs())
-                    sb.Append($" [owner={GuidOf(d)} leader={(d.leaderCharacter == null ? "none" : (d.leaderCharacter.isNetPuppet ? "guest" : "local"))} dist={(host == null ? -1 : (Pos(d) - Pos(host)).magnitude):0.0}]");
+                    sb.Append($" [owner={GuidOf(d)} leader={(d.leaderCharacter == null ? "none" : (Same(d.leaderCharacter, host) ? "host" : "guest"))} dist={(host == null ? -1 : (Pos(d) - Pos(host)).magnitude):0.0}]");
                 Plugin.L.LogInfo(sb.ToString());
             }
             catch (Exception e) { Plugin.L.LogWarning("diag failed: " + e.Message); }
@@ -225,8 +286,7 @@ namespace DogShare
             {
                 var gid = GuidOf(d);
                 if (string.IsNullOrEmpty(gid) || gid == hostId) return false;
-                var lead = d.leaderCharacter;
-                return guestIds.Contains(gid) || (lead != null && lead.isNetPuppet) || lead == null;
+                return !Same(d.leaderCharacter, host);
             });
             var dog = Nearest(theirs, here, Plugin.Range.Value);
             if (dog == null) { Say("DogShare: no guest's dog is close to you."); return; }
@@ -254,13 +314,13 @@ namespace DogShare
                 var gid = GuidOf(dog);
                 if (string.IsNullOrEmpty(gid) || gid == hostId || Same(dog.leaderCharacter, host)) continue;
 
-                if (byId.TryGetValue(gid, out var owner))
+                if (byId.TryGetValue(gid, out var owner) && owner != null)
                 {
                     var lead = dog.leaderCharacter;
                     if (lead == null || lead.Pointer != owner.Pointer)
                     {
                         dog.SetLeader(owner);
-                        Plugin.L.LogInfo($"Re-linked a dog to {GuestName(owner)}.");
+                        if (++_relinkLogs <= 20) Plugin.L.LogInfo($"Re-linked a dog to {GuestName(owner)}.");
                     }
                 }
                 else if (!_loggedRelinkMiss && guests.Count > 0)
