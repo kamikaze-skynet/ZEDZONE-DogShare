@@ -37,7 +37,7 @@ namespace DogShare
         internal static readonly Dictionary<IntPtr, Mirror> ByPtr = new Dictionary<IntPtr, Mirror>();
         static readonly Dictionary<string, Mirror> ByGuid = new Dictionary<string, Mirror>();
 
-        class Incoming { public string Handle, Guid, Name; public int NetId, Breed, Level, Points, Spent, Combat; public float Xp, LastPet; public bool Stay, Unc; public List<int[]> Skills = new List<int[]>(); }
+        class Incoming { public string Handle, Guid, Name; public int NetId, Breed, Level, Points, Spent, Combat; public float Xp, LastPet, Hunger = -1f; public bool Stay, Unc; public List<int[]> Skills = new List<int[]>(); }
         static readonly Dictionary<string, Incoming> _incoming = new Dictionary<string, Incoming>();
         static int _incomingSeq = -1;
 
@@ -223,7 +223,7 @@ namespace DogShare
                     {
                         Handle = p[4], Guid = p[5], NetId = I(p[6]), Name = p[7], Breed = I(p[8]), Level = I(p[9]),
                         Xp = F(p[10]), Points = I(p[11]), Spent = I(p[12]), Stay = p[13] == "1", Combat = I(p[14]),
-                        LastPet = F(p[15]), Unc = p[16] == "1"
+                        LastPet = F(p[15]), Unc = p[16] == "1", Hunger = p.Length > 17 ? F(p[17]) : -1f
                     };
                     _incoming[d.Handle] = d;
                     break;
@@ -306,6 +306,11 @@ namespace DogShare
             pd.lastPetInGameTime = d.LastPet;
             foreach (var s in d.Skills) { try { pd.SetSkillLevel(s[0], s[1]); } catch { } }
             try { pd.isUnconscious = d.Unc; } catch { }
+            if (d.Hunger >= 0f)
+            {
+                if (Math.Abs(m.Data.hunger - d.Hunger) >= 1f) DLog.Debug("guest", $"'{d.Name}' hunger {m.Data.hunger:0} -> {d.Hunger:0} (from host)");
+                m.Data.hunger = d.Hunger;
+            }
             ApplyGear(m);
 
             // The stand-in dog on this PC.
@@ -498,6 +503,26 @@ namespace DogShare
                 DLog.Throttle("range|" + m.Guid, 10f, "guest", $"Walked up to '{m.Data.characterData?.characterName}' - prompt built (interact object {(io == null ? "MISSING" : io.activeInHierarchy ? "active" : "inactive")}; flags now {PromptFlags.Describe(__instance)})");
             }
             catch { }
+        }
+
+        // The game's petting routine runs over several frames and stops on a stand-in (it re-checks
+        // isNetPuppet). For shared dogs, pressing Pet asks the host directly; the host applies the
+        // affection with the game's cooldown and confirms.
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.PetInteract))]
+        [HarmonyPrefix]
+        static bool PetInteract(PetCharacterController __instance)
+        {
+            try
+            {
+                var m = GuestMirror.Of(__instance?.npcData);
+                if (m == null) return true;
+                if (m.Pet.isUnconscious) { GuestMirror.Note("Your dog is unconscious."); DLog.Info("act", "Pet: dog is unconscious - not sent"); return false; }
+                DLog.Info("act", $"Pet '{m.Data.characterData?.characterName}' - asking host for the affection");
+                GuestMirror.Send("P", m.Handle);
+                try { __instance.PlayHappy(); } catch { }
+                return false;
+            }
+            catch (Exception e) { DLog.Error("act", "Pet failed", e); return true; }
         }
 
         [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.AddAffection))]

@@ -25,7 +25,7 @@ namespace DogShare
     //                 G|dog|slot|<item>    set gear slot c(ollar) / v(est) / p(ouch); empty = unequipped
     //                 U|dog|<inventory>    new saddlebag contents
     //   <item>/<inventory> = xfer|i|n|base64 chunk, the game's own item bytes
-    // Host -> guest:  D|to|seq|count|dog|npcGuid|netId|name|breed|level|xp|points|spent|stay|combat|lastPet|unconscious
+    // Host -> guest:  D|to|seq|count|dog|npcGuid|netId|name|breed|level|xp|points|spent|stay|combat|lastPet|unconscious|hunger
     //                 K|to|seq|dog|id:level:max;...
     //                 B|to|dog|slot|<item> gear slot contents (only when changed)
     //                 E|to|seq             end of list
@@ -338,10 +338,12 @@ namespace DogShare
             if (pc == null || item == null) { DLog.Error("item", $"  feed: couldn't read the food item ({blob?.Length ?? 0} bytes)"); return null; }
             var pd = dog.npcData?.petData;
             float before = pd?.affectionXp ?? 0f;
+            float hBefore = dog.npcData?.hunger ?? 0f;
             pc.EatFood(item, PetSystem.affectionFeed, true);
-            DLog.Info("item", $"  fed item {item.itemId}; affection {before:0.#} -> {pd?.affectionXp ?? 0f:0.#}, hunger {dog.npcData?.hunger ?? 0f:0}");
+            DLog.Info("item", $"  fed item {item.itemId}; affection {before:0.#} -> {pd?.affectionXp ?? 0f:0.#}, hunger {hBefore:0} -> {dog.npcData?.hunger ?? 0f:0}");
             Changed(dog);
-            return null;
+            string name = dog.npcData?.characterData?.characterName;
+            return (string.IsNullOrEmpty(name) ? "Your dog" : name) + " ate it.";
         }
 
         static string FirstAid(GOAPAgent_Pet dog, string idText)
@@ -452,7 +454,8 @@ namespace DogShare
                     Proto.Clean(n.characterData?.characterName, 20), pd.breedId, pd.affectionLevel,
                     pd.affectionXp.ToString("0.##", CultureInfo.InvariantCulture),
                     pd.availableSkillPoints, pd.skillPointsSpent, pd.isStayCommand ? 1 : 0, pd.combatMode,
-                    pd.lastPetInGameTime.ToString("0.#####", CultureInfo.InvariantCulture), pd.isUnconscious ? 1 : 0));
+                    pd.lastPetInGameTime.ToString("0.#####", CultureInfo.InvariantCulture), pd.isUnconscious ? 1 : 0,
+                    n.hunger.ToString("0.#", CultureInfo.InvariantCulture)));
 
                 var sb = new StringBuilder();
                 if (mgr != null)

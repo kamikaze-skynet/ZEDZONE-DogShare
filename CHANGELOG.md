@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.5
+- Fix: petting a shared dog did nothing (the game's petting routine stops on a stand-in). Pressing Pet now asks the host directly; the host applies the affection with the game's cooldown and confirms ("Good dog!").
+- Fix: a shared dog's hunger never showed on the guest's PC. The host now sends it with the dog's other details, and confirms each meal ("Bear ate it.").
+
 ## 1.3.4
 - Fix: the game's dog prompt refuses to build when certain flags are set on the dog, and one is set on a guest's stand-in. For shared dogs DogShare now clears those flags (looked up by name at runtime and logged) only while the prompt, commands, petting, feed and first aid open, then restores them.
 - Fix: a guest's order made the dog pop back onto the host's Teammates card (the game's NotifyPetChanged adds any pet to the card). The host now keeps guest dogs off it.
