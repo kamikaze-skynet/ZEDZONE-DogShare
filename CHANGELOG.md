@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+- Fix: a guest's dog lost its owner right after being given (the dog AI looks its leader up by id, and the game's lookup only knows local characters). The host now answers that lookup with remote players, so the dog keeps following the guest.
+- Fix: guests are now found through the game's remote-player table (NetPlayerSync) instead of scanning for stand-in characters.
+- Fix: the guest menu's chat hooks were never switched on in 1.1.0, so F6 couldn't reach the host.
+
 ## 1.1.0
 - Guest dog menu (F6): Follow / Stay, combat mode, Pet (10 in-game minute cooldown, like the game), Rename, Skills, Release.
 - Guests now need DogShare too for the menu. Requests travel over hidden co-op chat lines and replies go only to that guest.
