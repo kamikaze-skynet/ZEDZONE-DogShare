@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.4
+- Fix: the game's dog prompt refuses to build when certain flags are set on the dog, and one is set on a guest's stand-in. For shared dogs DogShare now clears those flags (looked up by name at runtime and logged) only while the prompt, commands, petting, feed and first aid open, then restores them.
+- Fix: a guest's order made the dog pop back onto the host's Teammates card (the game's NotifyPetChanged adds any pet to the card). The host now keeps guest dogs off it.
+- Logs the stand-in's flag values when a shared dog is attached and when you walk up to it.
+
 ## 1.3.3
 - Fix: the Commands / Pet / Feed prompt didn't appear when a guest walked up to their dog. Stand-ins don't run the game's interact-range check, so DogShare now runs it for shared dogs every frame.
 - Fix: the host kept a given dog on their Teammates card and could still command it. Giving a dog now removes it from the host's team list and card (also cleans up dogs given with older versions); taking it back puts it back.

@@ -340,6 +340,7 @@ namespace DogShare
                     try { pc.RefreshInteracts(); } catch (Exception e) { DLog.Error("guest", "RefreshInteracts failed", e); }
                     bool readsBack = pc.npcData != null && pc.npcData.Pointer == m.Data.Pointer;
                     bool owned = false; try { owned = pc.IsOwnedByLocalPlayer(); } catch { }
+                    DLog.Info("guest", $"'{d.Name}': stand-in flags: {PromptFlags.Describe(pc)}");
                     DLog.Info("guest", $"'{d.Name}': attached pet data to its stand-in - game sees it: {(readsBack ? "yes" : "NO")}, owned by me: {(owned ? "yes" : "NO")}" +
                         (readsBack && owned ? " -> the Commands / Pet prompt should appear when you walk up to it" : " -> the game's prompts won't show for it"));
                 }
@@ -494,7 +495,7 @@ namespace DogShare
                 var m = GuestMirror.Of(__instance?.npcData);
                 if (m == null) return;
                 GameObject io = null; try { io = __instance.interactObject; } catch { }
-                DLog.Throttle("range|" + m.Guid, 10f, "guest", $"Walked up to '{m.Data.characterData?.characterName}' - the game's prompt should show now (interact object {(io == null ? "MISSING" : io.activeInHierarchy ? "active" : "inactive")})");
+                DLog.Throttle("range|" + m.Guid, 10f, "guest", $"Walked up to '{m.Data.characterData?.characterName}' - prompt built (interact object {(io == null ? "MISSING" : io.activeInHierarchy ? "active" : "inactive")}; flags now {PromptFlags.Describe(__instance)})");
             }
             catch { }
         }
