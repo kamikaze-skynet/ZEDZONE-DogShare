@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+- Shared dogs now get hungry like any dog and their owner feeds them. The automatic top-up is now the `AutoFeedGuestDogs` setting, off by default (replaces `KeepGuestDogsFed`).
+- Feeding a full dog says it isn't hungry and keeps your food, like the game.
+- The host's status line logs each guest dog's hunger.
+
 ## 1.4.0
 - Animation sync for players with DogShare. The game itself doesn't sync petting or feeding animations (they only play on the PC doing it). Now:
   - any dog animation the host plays (sitting to be petted, eating, ...) also plays on every guest's copy of that dog;

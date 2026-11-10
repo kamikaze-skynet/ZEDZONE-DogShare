@@ -561,6 +561,13 @@ namespace DogShare
                 var item = toolData?.itemData;
                 var me = LocalCharacter();
                 if (item == null || me == null) { DLog.Warn("item", "Feed: no item or no local character"); return false; }
+                float max = 0f; try { max = PetSystem.petMaxHunger; } catch { }
+                if (max > 0f && m.Data.hunger >= max - 0.5f)
+                {
+                    GuestMirror.Note($"{m.Data.characterData?.characterName ?? "Your dog"} isn't hungry.");
+                    DLog.Info("item", $"Feed: '{m.Data.characterData?.characterName}' is full ({m.Data.hunger:0}/{max:0}) - kept the food");
+                    return false;
+                }
                 var bytes = Proto.ItemBytes(item);
                 if (!BasicCharacterController.ConsumeOneItemFromCharacter(me, item, true)) { DLog.Warn("item", $"Feed: couldn't take item {item.itemId} from my backpack - nothing sent"); return false; }
                 GuestMirror.SendItem(bytes, "F", m.Handle);

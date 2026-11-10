@@ -22,7 +22,7 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.4.0";
+        public const string Version = "1.4.1";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
@@ -40,14 +40,14 @@ namespace DogShare
             TakeKey = Config.Bind("Keys", "TakeBackDogKey", KeyCode.F8, "Host: take back the guest-owned dog nearest to you.");
             MaxPerGuest = Config.Bind("Rules", "MaxDogsPerGuest", 3, "How many dogs each guest can be given.");
             Range = Config.Bind("Rules", "Range", 8f, "How close (in game units) the guest / dog must be to the host.");
-            KeepFed = Config.Bind("Rules", "KeepGuestDogsFed", true, "Guests can't feed dogs through the menu, so keep guest-owned dogs' hunger full.");
+            KeepFed = Config.Bind("Rules", "AutoFeedGuestDogs", false, "Keep guest-owned dogs' hunger full automatically. Off (default): guest dogs get hungry like your own, and their owner feeds them.");
 
             VerboseLog = Config.Bind("Debug", "VerboseLog", true, "Log every request and reply (DEBUG lines). Turn off once everything works.");
             DLog.Verbose = VerboseLog.Value;
             DLog.Open(Version);
             string gameVer = "?";
             try { gameVer = Application.version; } catch { }
-            DLog.Info("start", $"DogShare {Version} loading (game {gameVer}). Host keys: give={GiveKey.Value}, take back={TakeKey.Value}. MaxDogsPerGuest={MaxPerGuest.Value}, Range={Range.Value}, KeepGuestDogsFed={KeepFed.Value}, VerboseLog={VerboseLog.Value}");
+            DLog.Info("start", $"DogShare {Version} loading (game {gameVer}). Host keys: give={GiveKey.Value}, take back={TakeKey.Value}. MaxDogsPerGuest={MaxPerGuest.Value}, Range={Range.Value}, AutoFeedGuestDogs={KeepFed.Value}, VerboseLog={VerboseLog.Value}");
 
             var harmony = new Harmony(Guid);
             int ok = 0, failed = 0;
@@ -374,16 +374,18 @@ namespace DogShare
                 var host = HostPlayer();
                 var guests = Guests();
                 int mine = 0, guestDogs = 0, linked = 0;
+                var hungers = new List<string>();
                 foreach (var d in Dogs())
                 {
                     if (OwnedBy(d, host)) { mine++; continue; }
                     guestDogs++;
                     var owner = GuestById(GuidOf(d));
                     if (owner != null && Same(d.leaderCharacter, owner)) linked++;
+                    hungers.Add($"{d.npcData?.characterData?.characterName}: hunger {d.npcData?.hunger ?? 0f:0}/{PetSystem.petMaxHunger:0}");
                 }
                 var names = new List<string>();
                 foreach (var g in guests) names.Add(GuestName(g));
-                DLog.Change("hoststatus", "status", $"Host: {guests.Count} guest(s) [{string.Join(", ", names)}], my dogs {mine}, guest dogs {guestDogs} ({linked} following their owner here)");
+                DLog.Change("hoststatus", "status", $"Host: {guests.Count} guest(s) [{string.Join(", ", names)}], my dogs {mine}, guest dogs {guestDogs} ({linked} following their owner here) [{string.Join("; ", hungers)}]");
             }
             catch (Exception e) { DLog.Error("error", "status", e); }
         }

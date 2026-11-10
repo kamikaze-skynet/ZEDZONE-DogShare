@@ -9,7 +9,7 @@ In co-op the game only allows [b]one dog for the whole session[/b], and only the
 [*]A guest's dog follows them and fights for them, is saved in the host's world, and links back to them when they rejoin.
 [*][b]Guests use the dog like their own:[/b] the game's Commands / Pet / Feed prompt, the Teammates card and its orders menu, rename, skills, first aid, gear (collar, vest, saddlebag) and the saddlebag's storage. No extra keys.
 [*]Petting and feeding animations are synced for everyone with DogShare (the base game only shows them to the player doing it).
-[*]Guest dogs are kept fed and don't need healing from the guest.
+[*]Shared dogs get hungry like any dog - whoever owns one feeds it.
 [/list]
 
 [b]Everyone should subscribe:[/b] the host needs it to give dogs, and guests need it for the prompts and Teammates card.
@@ -30,5 +30,5 @@ In co-op the game only allows [b]one dog for the whole session[/b], and only the
 [*]If a guest leaves, their dogs wait in the host's world until they come back.
 [/list]
 
-Config: BepInEx/config/girthy_mods.zedzone.dogshare.cfg (keys, max dogs per guest, range, keep fed).
+Config: BepInEx/config/girthy_mods.zedzone.dogshare.cfg (keys, max dogs per guest, range, auto-feed).
 Source and issues: https://github.com/kamikaze-skynet/ZEDZONE-DogShare

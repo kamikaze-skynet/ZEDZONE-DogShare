@@ -10,7 +10,7 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 - A guest's dog follows them and fights for them. It's saved in the host's world, and links back to its owner when they rejoin.
 - **Guests use their dog like their own:** the game's **Commands / Pet / Feed** prompt at the dog, the Teammates card and its orders menu (Follow, Stay, Passive, Defensive, Aggressive), rename, skills, first aid, gear (collar, vest, saddlebag) and the saddlebag's storage. Food, medicine and gear come from and go back to the guest's own backpack; the host does each action on the real dog with the game's own code.
 - **Animations are synced** for players with DogShare: dogs sitting to be petted or eating, and the petting pose, show up for everyone (the game itself only shows them on the PC doing it).
-- DogShare also keeps guest dogs' hunger full (config `KeepGuestDogsFed`), so feeding is for affection, not survival.
+- **Shared dogs get hungry like any dog**, and whoever owns one feeds it (the host his own, a guest theirs, with the game's food picker). `AutoFeedGuestDogs` turns on an automatic top-up instead.
 
 **Everyone should have DogShare:** the host to give dogs, guests for the prompts and Teammates card. A guest without it still gets a dog that follows and fights for them.
 
@@ -43,7 +43,7 @@ Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare 1.0.
 | `Keys.TakeBackDogKey` | `F8` | Take back the nearest guest-owned dog. |
 | `Rules.MaxDogsPerGuest` | `3` | How many dogs each guest can be given. |
 | `Rules.Range` | `8` | How close the guest / dog has to be. |
-| `Rules.KeepGuestDogsFed` | `true` | Keep guest-owned dogs' hunger full. |
+| `Rules.AutoFeedGuestDogs` | `false` | Keep guest-owned dogs' hunger full automatically. Off: guest dogs get hungry like your own and their owner feeds them. |
 | `Debug.VerboseLog` | `true` | Also log every request and reply (DEBUG lines). |
 
 ## Logs (for testing and bug reports)
@@ -54,7 +54,7 @@ DogShare writes its own log to **`BepInEx\DogShare.log`** in the game folder (re
 |---|---|
 | `start` | Loading, which game methods were hooked, and anything that failed to hook |
 | `role` | Whether you're offline, the host or a guest |
-| `host` | Giving / taking back dogs, re-linking a guest's dog, hunger top-ups |
+| `host` | Giving / taking back dogs, re-linking a guest's dog, hunger top-ups (if AutoFeedGuestDogs is on) |
 | `req` | Each request the host got from a guest, and its result |
 | `send` | What the host sent back (dog lists, gear copies) |
 | `guest` | On a guest's PC: shared dogs found, pet data attached, Teammates card |
