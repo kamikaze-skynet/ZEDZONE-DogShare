@@ -255,6 +255,9 @@ namespace DogShare
                 case "I":
                     Fetch.GuestOnBall(p);
                     break;
+                case "T":
+                    Fetch.GuestOnGift(p);
+                    break;
                 case "E":
                     if (_incoming.Count > 0 && I(p[2]) != _incomingSeq) return;
                     {

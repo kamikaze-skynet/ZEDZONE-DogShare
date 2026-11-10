@@ -31,6 +31,9 @@ namespace DogShare
     //                 B|to|dog|slot|<item> gear slot contents (only when changed)
     //                 E|to|seq             end of list
     //                 M|to|text            message to show
+    //                 I|to|dog|<item>      fetch: the dog brought this ball back (see Fetch.cs)
+    //                 T|to|dog|itemId|name gift: "<dog> brought you <item>" (the gift itself is on the ground)
+    //                 *-broadcasts (Anim.cs): Y animation, S sound, Z petting pose, W speech bubble
     // "dog" is the first 8 characters of the dog's npcGUID, "to" the first 8 of the guest's characterId.
     internal static class Proto
     {

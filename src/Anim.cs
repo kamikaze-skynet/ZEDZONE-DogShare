@@ -94,6 +94,18 @@ namespace DogShare
                 ApplySound(c, p[3], p[4]);
                 DLog.Debug("guest", $"Played dog sound {p[3]} on net id {netId}");
             }
+            else if (p[0] == "W" && p.Length >= 5)
+            {
+                int netId = Int(p[2]);
+                var c = NetMonsterSync.instance?.ClientGetPuppet(netId)?.TryCast<PetCharacterController>();
+                if (c == null) return;
+                Applying = true;
+                var saved = PromptFlags.Clear(c, "bubble");
+                try { c.ShowDialogueBubble(p[4], Flt(p[3])); }
+                catch (Exception e) { DLog.Throttle("bubbleerr", 30f, "error", "Showing a dog's speech bubble failed: " + e.Message); }
+                finally { PromptFlags.Restore(c, saved); Applying = false; }
+                DLog.Debug("guest", $"Dog bubble on net id {netId}: {p[4]}");
+            }
             else if (p[0] == "Z" && p.Length >= 4)
             {
                 string who = p[2];
@@ -183,6 +195,25 @@ namespace DogShare
                 DLog.Debug("send", $"Dog animation {stateName} ({suspendSeconds:0.#}s, net id {netId}) sent to guests");
             }
             catch (Exception e) { DLog.Throttle("animsend", 30f, "error", "Sending a dog animation failed: " + e.Message); }
+        }
+
+        // Host: a dog's speech bubble ("Woof!" when it brings something back, "Good dog!", ...) shows on the guests' copies too.
+        [HarmonyPatch(typeof(BasicCharacterController), nameof(BasicCharacterController.ShowDialogueBubble))]
+        [HarmonyPostfix]
+        static void Bubble(BasicCharacterController __instance, string __0, float __1)
+        {
+            try
+            {
+                if (AnimSync.Applying || !AnimSync.IsHost() || __instance == null || string.IsNullOrEmpty(__0)) return;
+                var pc = __instance.TryCast<PetCharacterController>();
+                if (pc == null) return;
+                int netId = -1;
+                if (!NetMonsterSync.instance.HostTryGetNetId(pc, out netId) || netId < 0) return;
+                AnimSync.BroadcastToGuests(Proto.Join("W", "*", netId,
+                    __1.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture), Proto.Clean(__0, 120)));
+                DLog.Debug("send", $"Dog bubble '{__0}' (net id {netId}) sent to guests");
+            }
+            catch (Exception e) { DLog.Throttle("bubblesend", 30f, "error", "Sending a dog's speech bubble failed: " + e.Message); }
         }
 
         // Host: dog sounds go to the guests' copies too.

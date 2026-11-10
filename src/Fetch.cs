@@ -129,22 +129,31 @@ namespace DogShare
             }
         }
 
+        // Host: is this character a guest's stand-in? (the remote player's character on the host)
+        internal static bool TryGuest(BasicCharacterController who, out int pid, out HumanCharacterController remote)
+        {
+            pid = -1; remote = null;
+            if (who == null || !NetworkManager.isOnline || NetworkManager.isClient) return false;
+            var sync = NetPlayerSync.instance;
+            if (sync == null || !sync.TryGetPlayerIdOf(who, out pid)) return false;
+            return sync.TryGetRemoteController(pid, out remote) && remote != null && remote.Pointer == who.Pointer;
+        }
+
+        internal static NetPeer PeerOf(int pid, HumanCharacterController remote)
+        {
+            NetPeer peer = null;
+            try { peer = NetworkManager.instance.GetPeerByPlayerId(pid); } catch { }
+            return peer ?? AnimSync.PeerOf(DogShareBehaviour.IdOf(remote));
+        }
+
         // Inside Deliver: the dog hands the ball to its leader. For a guest leader, send it to them instead.
         internal static bool HostRedirectHandOver(BasicCharacterController who, ItemData item)
         {
             if (Delivering == null || item == null || who == null) return false;
-            if (!NetworkManager.isOnline || NetworkManager.isClient) return false;
-            var sync = NetPlayerSync.instance;
-            if (sync == null) return false;
-            int pid;
-            if (!sync.TryGetPlayerIdOf(who, out pid)) return false;
-            HumanCharacterController remote = null;
-            if (!sync.TryGetRemoteController(pid, out remote) || remote == null || remote.Pointer != who.Pointer) return false;
+            if (!TryGuest(who, out int pid, out var remote)) return false;
 
-            NetPeer peer = null;
-            try { peer = NetworkManager.instance.GetPeerByPlayerId(pid); } catch { }
+            var peer = PeerOf(pid, remote);
             string gid = DogShareBehaviour.IdOf(remote);
-            if (peer == null) peer = AnimSync.PeerOf(gid);
             string dog = Delivering.npcData?.characterData?.characterName ?? "?";
             if (peer == null)
             {
@@ -157,6 +166,42 @@ namespace DogShare
             Proto.SendBlob(t => HostHandler.Reply(peer, t), bytes, "I", to, Proto.Clean(dog, 20));
             DLog.Info("act", $"Fetch: '{dog}' brought the ball back to {GuestName(pid)} - sent to their backpack ({bytes.Length} bytes)");
             return true;
+        }
+
+        // ---------------------------------------------------------------- gifts ("Bear brought you a dead crow")
+        // GOAPAction_Pet_DeliverGift.DropGift drops the gift at the leader's feet (a normal ground item everyone
+        // sees) and shows "<dog> brought you <item>" with SystemNotificationPanel - on the host's screen only.
+        // For a guest's dog: keep that notice off the host's screen and send it to the guest instead.
+        class Gift { public int Pid; public HumanCharacterController Remote; public string Dog; public int ItemId = -1; public string ItemName; }
+        internal static object Gifting;   // non-null while DropGift runs for a guest's dog
+
+        internal static void HostGiftBegin(GOAPAgent_Pet agent)
+        {
+            Gifting = null;
+            if (agent == null) return;
+            BasicCharacterController leader = null;
+            try { leader = agent.leaderCharacter; } catch { }
+            if (!TryGuest(leader, out int pid, out var remote)) return;
+            var g = new Gift { Pid = pid, Remote = remote, Dog = agent.npcData?.characterData?.characterName ?? "" };
+            try
+            {
+                var item = agent.pet?.holdingItem;
+                if (item != null) { g.ItemId = item.itemId; g.ItemName = item.GetItemName(); }
+            }
+            catch (Exception e) { DLog.ErrorThrottled("giftitem", 60f, "act", "Gift: couldn't read what the dog is carrying", e); }
+            Gifting = g;
+        }
+
+        internal static void HostGiftEnd()
+        {
+            var g = Gifting as Gift;
+            Gifting = null;
+            if (g == null) return;
+            var peer = PeerOf(g.Pid, g.Remote);
+            string who = GuestName(g.Pid);
+            if (peer == null) { DLog.Warn("act", $"Gift: '{g.Dog}' brought {who} {g.ItemName} but they aren't reachable to tell them"); return; }
+            HostHandler.Reply(peer, Proto.Join("T", Proto.Short(DogShareBehaviour.IdOf(g.Remote)), Proto.Clean(g.Dog, 20), g.ItemId, Proto.Clean(g.ItemName, 40)));
+            DLog.Info("act", $"Gift: '{g.Dog}' brought {who} {g.ItemName} (item {g.ItemId}) - dropped at their feet, told them");
         }
 
         static bool DropAt(BasicCharacterController who, ItemData item)
@@ -203,6 +248,26 @@ namespace DogShare
                 DLog.Info("item", $"Fetch: '{dog}' brought the ball back - backpack full, dropped at my feet");
             }
             catch (Exception e) { DLog.Error("item", "Fetch: dropping the returned ball failed", e); }
+        }
+
+        // T|to|dogName|itemId|itemName(host's language)
+        internal static void GuestOnGift(string[] p)
+        {
+            if (p.Length < 5) return;
+            string dog = p[2], name = p[4];
+            int id = int.TryParse(p[3], out var v) ? v : -1;
+            try { if (id >= 0) { var a = ItemManager.instance?.GetItemAttrById(id); if (a != null && !string.IsNullOrEmpty(a.ItemName)) name = a.ItemName; } } catch { }
+            string text = null;
+            try
+            {
+                var fmt = TextManager.instance?.GetText(0x2b02);   // the game's "{0} brought you {1}" line
+                if (!string.IsNullOrEmpty(fmt) && fmt.Contains("{0}")) text = string.Format(fmt, dog, name);
+            }
+            catch (Exception e) { DLog.ErrorThrottled("gifttext", 60f, "guest", "Gift: couldn't read the game's gift text - using English", e); }
+            if (string.IsNullOrEmpty(text)) text = $"{dog} brought you {name}";
+            try { SystemNotificationPanel.ShowNotificationSafe(text, true); }
+            catch (Exception e) { DLog.Error("guest", "Gift: showing the notice failed", e); }
+            DLog.Info("guest", $"Gift: {text}");
         }
 
         internal static void GuestOnThrow(HumanCharacterController who, ItemData item)
@@ -260,6 +325,26 @@ namespace DogShare
             catch (Exception e) { DLog.Error("act", "Fetch: handing the ball to the guest failed", e); }
             return true;
         }
+
+        [HarmonyPatch(typeof(GOAPAction_Pet_DeliverGift), nameof(GOAPAction_Pet_DeliverGift.DropGift))]
+        [HarmonyPrefix]
+        static void GiftBegin(GOAPAgent_Pet __0)
+        {
+            try { Fetch.HostGiftBegin(__0); } catch (Exception e) { DLog.ErrorThrottled("giftbegin", 60f, "act", "Gift: checking the dog's owner failed", e); }
+        }
+
+        [HarmonyPatch(typeof(GOAPAction_Pet_DeliverGift), nameof(GOAPAction_Pet_DeliverGift.DropGift))]
+        [HarmonyFinalizer]
+        static Exception GiftEnd(Exception __exception)
+        {
+            try { Fetch.HostGiftEnd(); } catch (Exception e) { DLog.Error("act", "Gift: telling the guest failed", e); }
+            return __exception;
+        }
+
+        // The host shouldn't get "<dog> brought you ..." for a guest's dog.
+        [HarmonyPatch(typeof(SystemNotificationPanel), nameof(SystemNotificationPanel.ShowNotification))]
+        [HarmonyPrefix]
+        static bool HostNotice() => Fetch.Gifting == null;
 
         [HarmonyPatch(typeof(HumanCharacterController), nameof(HumanCharacterController.ThrowItem))]
         [HarmonyPrefix]

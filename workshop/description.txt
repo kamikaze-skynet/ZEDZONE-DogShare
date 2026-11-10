@@ -11,6 +11,7 @@ In co-op the game only allows [b]one dog for the whole session[/b], and only the
 [*]Petting and feeding animations and dog sounds (barks, whines, happy) are synced for everyone with DogShare (the base game only plays them for one player).
 [*]Shared dogs get hungry like any dog - whoever owns one feeds it.
 [*]Fetch works: throw a tennis ball and your dog brings it back to your backpack.
+[*]You get the "<dog> brought you ..." notice for your own dog's gifts, and dog speech bubbles show for everyone.
 [/list]
 
 [b]Everyone should subscribe:[/b] the host needs it to give dogs, and guests need it for the prompts and Teammates card.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.5
+- Gift notices for shared dogs: when a guest's dog brings them something ("Bear brought you a dead crow"), the guest now gets the game's notice. The game only showed it on the host's screen; the host no longer gets it for guests' dogs. The gift itself is dropped at the guest's feet as before.
+- Dog speech bubbles (the one a dog shows when it brings something back, and others) now show on every guest's screen too.
+
 ## 1.4.4
 - Fetch works for shared dogs. When a guest throws a tennis ball, the host now tells that guest's dogs about it (the game only did this for the host's own throws), and when the dog brings it back the ball goes into the guest's backpack (or at their feet if it's full) instead of disappearing into the guest's stand-in on the host.
 - Logs every step of a fetch (throw, which dog went for it or why none did, ball returned).
