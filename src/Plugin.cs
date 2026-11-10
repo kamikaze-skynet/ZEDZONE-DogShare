@@ -11,7 +11,8 @@ using ZedZone.Net;
 
 namespace DogShare
 {
-    // HOST-ONLY mod. Guests don't need it.
+    // Host: lifts the one-pet co-op cap, gives / takes back dogs, runs guest dog commands.
+    // Guest: F6 menu for the dogs the host gave you (talks to the host over hidden chat lines).
     //  * Lifts the "only one pet in a co-op session" rule on the host (back to the single-player cap).
     //  * F7 near a guest: hands the dog closest to you to that guest (max 3 per guest).
     //  * F8 near a guest's dog: takes it back.
@@ -20,10 +21,10 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
 
         internal static ManualLogSource L;
-        internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
+        internal static ConfigEntry<KeyCode> GiveKey, TakeKey, MenuKey;
         internal static ConfigEntry<int> MaxPerGuest;
         internal static ConfigEntry<float> Range;
         internal static ConfigEntry<bool> KeepFed;
@@ -38,8 +39,11 @@ namespace DogShare
             KeepFed = Config.Bind("Rules", "KeepGuestDogsFed", true, "Guests can't feed dogs through the menu, so keep guest-owned dogs' hunger full.");
 
             new Harmony(Guid).PatchAll(typeof(Patches));
+            MenuKey = Config.Bind("Keys", "DogMenuKey", KeyCode.F6, "Guest: open the menu for the dogs the host gave you.");
             ClassInjector.RegisterTypeInIl2Cpp<DogShareBehaviour>();
+            ClassInjector.RegisterTypeInIl2Cpp<GuestDogMenu>();
             AddComponent<DogShareBehaviour>();
+            AddComponent<GuestDogMenu>();
             Log.LogInfo($"DogShare {Version} loaded (host-only). Give={GiveKey.Value} TakeBack={TakeKey.Value}");
         }
     }
@@ -78,7 +82,7 @@ namespace DogShare
 
         // ---------------------------------------------------------------- input
         static bool _legacyInputBroken;
-        static bool Pressed(KeyCode key)
+        internal static bool Pressed(KeyCode key)
         {
             if (!_legacyInputBroken)
             {
@@ -105,14 +109,14 @@ namespace DogShare
         }
 
         // ---------------------------------------------------------------- world queries
-        static HumanCharacterController HostPlayer()
+        internal static HumanCharacterController HostPlayer()
         {
             foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
                 if (h != null && h.isPlayer && !h.isNetPuppet) return h;
             return null;
         }
 
-        static List<HumanCharacterController> Guests()
+        internal static List<HumanCharacterController> Guests()
         {
             var list = new List<HumanCharacterController>();
             foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
@@ -121,7 +125,7 @@ namespace DogShare
             return list;
         }
 
-        static List<GOAPAgent_Pet> Dogs()
+        internal static List<GOAPAgent_Pet> Dogs()
         {
             var list = new List<GOAPAgent_Pet>();
             foreach (var p in UnityEngine.Object.FindObjectsOfType<GOAPAgent_Pet>())
@@ -134,12 +138,12 @@ namespace DogShare
             return list;
         }
 
-        static Vector2 Pos(Component c) => c.transform.position;
-        static bool Same(UnityEngine.Object a, UnityEngine.Object b) => a != null && b != null && a.Pointer == b.Pointer;
-        static bool OwnedBy(GOAPAgent_Pet d, HumanCharacterController who)
+        internal static Vector2 Pos(Component c) => c.transform.position;
+        internal static bool Same(UnityEngine.Object a, UnityEngine.Object b) => a != null && b != null && a.Pointer == b.Pointer;
+        internal static bool OwnedBy(GOAPAgent_Pet d, HumanCharacterController who)
             => Same(d.leaderCharacter, who) || (!string.IsNullOrEmpty(IdOf(who)) && GuidOf(d) == IdOf(who));
-        static string GuidOf(GOAPAgent_Pet p) => p.npcData?.leaderCharacterGUID;
-        static string IdOf(HumanCharacterController h) => h?.characterData?.characterId;
+        internal static string GuidOf(GOAPAgent_Pet p) => p.npcData?.leaderCharacterGUID;
+        internal static string IdOf(HumanCharacterController h) => h?.characterData?.characterId;
 
         static T Nearest<T>(IEnumerable<T> items, Vector2 from, float range) where T : Component
         {
@@ -152,13 +156,13 @@ namespace DogShare
             return best;
         }
 
-        static string GuestName(HumanCharacterController g)
+        internal static string GuestName(HumanCharacterController g)
         {
             try { var n = g.characterData.characterName; if (!string.IsNullOrEmpty(n)) return n; } catch { }
             return "that player";
         }
 
-        static void Say(string msg)
+        internal static void Say(string msg)
         {
             Plugin.L.LogInfo(msg);
             try { SystemNotificationPanel.ShowNotificationSafe(msg, true); } catch { }
