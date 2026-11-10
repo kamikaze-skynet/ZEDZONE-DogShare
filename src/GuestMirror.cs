@@ -42,6 +42,7 @@ namespace DogShare
         static int _incomingSeq = -1;
 
         static bool _hostHasMod;
+        internal static bool HostHasMod => _hostHasMod;
         static int _probes;
         static float _nextPoll, _nextProbe;
         static bool _wasGuest;
@@ -103,6 +104,7 @@ namespace DogShare
                 }
             }
             catch (Exception e) { DLog.Error("error", "Guest update failed", e); }
+            try { AnimSync.Tick(); } catch { }
             try { TickInteract(); } catch (Exception e) { DLog.Throttle("interr", 30f, "error", "Range check for shared dogs failed: " + e.Message); }
             try { TickPouch(); } catch (Exception e) { DLog.Error("item", "Saddlebag sync failed - stopped syncing it", e); _pouchOpen = null; }
         }
@@ -206,6 +208,7 @@ namespace DogShare
         {
             var p = Proto.Split(text);
             if (p.Length < 2) return;
+            if (p[1] == "*") { if (!_hostHasMod) { _hostHasMod = true; DLog.Info("guest", "Host runs DogShare - shared dogs enabled"); } AnimSync.GuestOnMessage(p); return; }
             if (p[1] != Proto.Short(MyId())) return;
             if (!_hostHasMod) { _hostHasMod = true; DLog.Info("guest", "Host runs DogShare - shared dogs enabled"); }
             if (p[0] != "D" && p[0] != "K" && p[0] != "E") DLog.Debug("guest", "<- host: " + HostHandler.OpName(p[0]) + " " + (p[0] == "B" ? p[2] + " " + p[3] + " part " + (p.Length > 6 ? p[5] + "/" + p[6] : "?") : text.Length > 120 ? text.Substring(Proto.Mark.Length, 110) + "..." : text.Substring(Proto.Mark.Length)));
@@ -519,7 +522,7 @@ namespace DogShare
                 if (m.Pet.isUnconscious) { GuestMirror.Note("Your dog is unconscious."); DLog.Info("act", "Pet: dog is unconscious - not sent"); return false; }
                 DLog.Info("act", $"Pet '{m.Data.characterData?.characterName}' - asking host for the affection");
                 GuestMirror.Send("P", m.Handle);
-                try { __instance.PlayHappy(); } catch { }
+                try { AnimSync.GuestPetPose(2.5f); } catch (Exception e) { DLog.Error("act", "Petting pose failed", e); }
                 return false;
             }
             catch (Exception e) { DLog.Error("act", "Pet failed", e); return true; }

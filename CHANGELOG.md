@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+- Animation sync for players with DogShare. The game itself doesn't sync petting or feeding animations (they only play on the PC doing it). Now:
+  - any dog animation the host plays (sitting to be petted, eating, ...) also plays on every guest's copy of that dog;
+  - the petting pose is shown to everyone: the host's, and each guest's (sent through the host).
+- Petting a shared dog as a guest now plays your petting pose and makes the dog sit, for everyone.
+
 ## 1.3.5
 - Fix: petting a shared dog did nothing (the game's petting routine stops on a stand-in). Pressing Pet now asks the host directly; the host applies the affection with the game's cooldown and confirms ("Good dog!").
 - Fix: a shared dog's hunger never showed on the guest's PC. The host now sends it with the dog's other details, and confirms each meal ("Bear ate it.").

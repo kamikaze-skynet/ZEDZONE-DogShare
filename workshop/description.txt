@@ -8,6 +8,7 @@ In co-op the game only allows [b]one dog for the whole session[/b], and only the
 [*][b]F8[/b] (host): takes back the guest's dog closest to you.
 [*]A guest's dog follows them and fights for them, is saved in the host's world, and links back to them when they rejoin.
 [*][b]Guests use the dog like their own:[/b] the game's Commands / Pet / Feed prompt, the Teammates card and its orders menu, rename, skills, first aid, gear (collar, vest, saddlebag) and the saddlebag's storage. No extra keys.
+[*]Petting and feeding animations are synced for everyone with DogShare (the base game only shows them to the player doing it).
 [*]Guest dogs are kept fed and don't need healing from the guest.
 [/list]
 

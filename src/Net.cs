@@ -24,6 +24,7 @@ namespace DogShare
     //                 A|dog|itemId         first aid with this item (already used up)
     //                 G|dog|slot|<item>    set gear slot c(ollar) / v(est) / p(ouch); empty = unequipped
     //                 U|dog|<inventory>    new saddlebag contents
+    //                 V|1/0                my petting pose on / off (see Anim.cs)
     //   <item>/<inventory> = xfer|i|n|base64 chunk, the game's own item bytes
     // Host -> guest:  D|to|seq|count|dog|npcGuid|netId|name|breed|level|xp|points|spent|stay|combat|lastPet|unconscious|hunger
     //                 K|to|seq|dog|id:level:max;...
@@ -178,6 +179,8 @@ namespace DogShare
             string to = Proto.Short(charId);
             string who = PeerName(charId);
             if (_moddedGuests.Add(charId)) DLog.Info("req", $"{who} ({to}) runs DogShare - answering their requests");
+            AnimSync.RememberPeer(charId, peer);
+            if (op == "V") { AnimSync.HostOnGuestPose(charId, p.Length > 1 && p[1] == "1"); return; }
 
             if (op == "L")
             {
@@ -282,7 +285,7 @@ namespace DogShare
             float before = pd.affectionXp;
             pc.AddAffection(PetSystem.affectionPet);
             DLog.Info("req", $"  affection {before:0.#} -> {pd.affectionXp:0.#} (level {pd.affectionLevel})");
-            try { pc.PlayHappy(); } catch { }
+            try { pc.PlayPetAnim("Dog_SitAlert", 2.5f); } catch (Exception e) { DLog.Error("req", "  petting animation failed", e); }   // also sent to guests
             Changed(dog);
             return "Good dog!";
         }
