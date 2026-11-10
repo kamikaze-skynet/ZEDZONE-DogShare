@@ -1,0 +1,9 @@
+bin/
+obj/
+dist/
+tools/
+*.user
+.vs/
+.idea/
+# the built DLL is copied in at publish time
+workshop/content/DogShare/*.dll

@@ -1,0 +1,33 @@
+[h1]DogShare - co-op dogs for guests[/h1]
+
+In co-op the game only allows [b]one dog for the whole session[/b], and only the host can rescue it. DogShare lets the host hand dogs to the other players.
+
+[list]
+[*]The host can keep [b]3 dogs[/b] in co-op again, like single-player.
+[*][b]F7[/b] (host): gives the dog closest to you to the player closest to you. Up to 3 per guest.
+[*][b]F8[/b] (host): takes back the guest's dog closest to you.
+[*]A guest's dog follows them and fights for them, is saved in the host's world, and links back to them when they rejoin.
+[*]Guest dogs are kept fed, since only the owner on the host's PC can use the feed menu.
+[/list]
+
+[b]Only the host needs it.[/b] It does nothing on a guest's PC, so it's safe for everyone to subscribe.
+
+[h2]Requires[/h2]
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258]ZED ZONE Code Mod Loader[/url] - run its install.cmd once, then start the game through Steam.
+
+[h2]How to use[/h2]
+[olist]
+[*]Host: rescue a dog and set it to follow you (a dog told to stay won't follow its new owner).
+[*]Stand next to your friend and press F7.
+[*]Rescue another one. You keep up to 3, each guest gets up to 3.
+[*]F8 next to a guest's dog takes it back.
+[/olist]
+
+[h2]Known limits[/h2]
+[list]
+[*]Guests can't feed, command, pet or heal their dog themselves.
+[*]If a guest leaves, their dogs wait in the host's world until they come back.
+[/list]
+
+Config: BepInEx/config/girthy_mods.zedzone.dogshare.cfg (keys, max dogs per guest, range, keep fed).
+Source and issues: https://github.com/kamikaze-skynet/ZEDZONE-DogShare

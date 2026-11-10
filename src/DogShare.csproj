@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>DogShare</AssemblyName>
+    <RootNamespace>DogShare</RootNamespace>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Version>1.0.0</Version>
+    <DebugType>none</DebugType>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <NoWarn>CS0436;CS8632;CS1701;CS1702</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Point this at your game. BepInEx (IL2CPP) must have run once so BepInEx\interop exists.
+      dotnet build -c Release -p:GameDir="D:\SteamLibrary\steamapps\common\ZED ZONE"
+    Add -p:CopyToMods=true to copy the DLL into %USERPROFILE%\AppData\LocalLow\LevenLiu\ZEDZONE\Mods\DogShare.
+  -->
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\ZED ZONE</GameDir>
+    <BepInExDir Condition="'$(BepInExDir)' == ''">$(GameDir)\BepInEx</BepInExDir>
+    <ModsDir Condition="'$(ModsDir)' == ''">$(USERPROFILE)\AppData\LocalLow\LevenLiu\ZEDZONE\Mods</ModsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(BepInExDir)\core\*.dll" Private="false" />
+    <Reference Include="$(BepInExDir)\interop\*.dll" Exclude="$(BepInExDir)\interop\UnityEngine.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CopyToMods" AfterTargets="Build" Condition="'$(CopyToMods)' == 'true'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsDir)\DogShare" />
+    <Message Importance="high" Text="Copied $(TargetFileName) to $(ModsDir)\DogShare" />
+  </Target>
+</Project>
