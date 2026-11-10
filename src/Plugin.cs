@@ -12,7 +12,8 @@ using ZedZone.Net;
 namespace DogShare
 {
     // Host: lifts the one-pet co-op cap, gives / takes back dogs, runs guest dog commands.
-    // Guest: F6 menu for the dogs the host gave you (talks to the host over hidden chat lines).
+    // Guest: the dogs the host gave you get the game's own prompts, Teammates card and orders menu;
+    //        every action is sent to the host over hidden chat lines and run there.
     //  * Lifts the "only one pet in a co-op session" rule on the host (back to the single-player cap).
     //  * F7 near a guest: hands the dog closest to you to that guest (max 3 per guest).
     //  * F8 near a guest's dog: takes it back.
@@ -21,10 +22,10 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.1.1";
+        public const string Version = "1.2.0";
 
         internal static ManualLogSource L;
-        internal static ConfigEntry<KeyCode> GiveKey, TakeKey, MenuKey;
+        internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
         internal static ConfigEntry<int> MaxPerGuest;
         internal static ConfigEntry<float> Range;
         internal static ConfigEntry<bool> KeepFed;
@@ -42,12 +43,12 @@ namespace DogShare
             harmony.PatchAll(typeof(Patches));
             harmony.PatchAll(typeof(GuidPatch));
             harmony.PatchAll(typeof(ChatPatches));
-            MenuKey = Config.Bind("Keys", "DogMenuKey", KeyCode.F6, "Guest: open the menu for the dogs the host gave you.");
+            harmony.PatchAll(typeof(GuestPatches));
             ClassInjector.RegisterTypeInIl2Cpp<DogShareBehaviour>();
-            ClassInjector.RegisterTypeInIl2Cpp<GuestDogMenu>();
+            ClassInjector.RegisterTypeInIl2Cpp<GuestMirror>();
             AddComponent<DogShareBehaviour>();
-            AddComponent<GuestDogMenu>();
-            Log.LogInfo($"DogShare {Version} loaded. Host: give={GiveKey.Value} take back={TakeKey.Value}. Guest: menu={MenuKey.Value}");
+            AddComponent<GuestMirror>();
+            Log.LogInfo($"DogShare {Version} loaded. Host: give={GiveKey.Value} take back={TakeKey.Value}. Guests use the game's own dog prompts.");
         }
     }
 

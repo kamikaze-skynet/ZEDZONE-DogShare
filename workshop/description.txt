@@ -7,11 +7,11 @@ In co-op the game only allows [b]one dog for the whole session[/b], and only the
 [*][b]F7[/b] (host): gives the dog closest to you to the player closest to you. Up to 3 per guest.
 [*][b]F8[/b] (host): takes back the guest's dog closest to you.
 [*]A guest's dog follows them and fights for them, is saved in the host's world, and links back to them when they rejoin.
-[*][b]F6[/b] (guest): your dog menu - Follow / Stay, Passive / Defensive / Aggressive, Pet, Rename, Skills, Release.
+[*][b]Guests use the dog like their own:[/b] the game's Commands / Pet prompt, the Teammates card and its orders menu, rename and skills. No extra keys.
 [*]Guest dogs are kept fed and don't need healing from the guest.
 [/list]
 
-[b]Everyone should subscribe:[/b] the host needs it to give dogs, and guests need it for the F6 menu.
+[b]Everyone should subscribe:[/b] the host needs it to give dogs, and guests need it for the prompts and Teammates card.
 
 [h2]Requires[/h2]
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258]ZED ZONE Code Mod Loader[/url] - run its install.cmd once, then start the game through Steam.
@@ -26,8 +26,8 @@ In co-op the game only allows [b]one dog for the whole session[/b], and only the
 
 [h2]Known limits[/h2]
 [list]
-[*]Guests use the F6 menu rather than the game's own dog prompts.
-[*]Gear and the saddlebag pouch aren't in the guest menu yet.
+[*]Feed and first aid are off for shared dogs (kept fed by the host's world).
+[*]Gear and the saddlebag pouch aren't available to guests yet.
 [*]If a guest leaves, their dogs wait in the host's world until they come back.
 [/list]
 

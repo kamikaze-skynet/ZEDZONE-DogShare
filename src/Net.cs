@@ -20,8 +20,8 @@ namespace DogShare
     //                 N|dog|name           rename
     //                 S|dog|skillId        upgrade skill
     //                 R|dog                release
-    // Host -> guest:  D|to|seq|count|dog|name|breed|level|affection%|points|stay|combat|petReady|unconscious
-    //                 K|to|seq|dog|id:level:max:reqAffection;...
+    // Host -> guest:  D|to|seq|count|dog|npcGuid|netId|name|breed|level|xp|points|spent|stay|combat|lastPet|unconscious
+    //                 K|to|seq|dog|id:level:max;...
     //                 E|to|seq             end of list
     //                 M|to|text            message to show
     // "dog" is the first 8 characters of the dog's npcGUID, "to" the first 8 of the guest's characterId.
@@ -81,7 +81,7 @@ namespace DogShare
             {
                 var text = msg?.text;
                 if (!Proto.Is(text)) return true;
-                GuestDogMenu.OnHostMessage(text);
+                GuestMirror.OnHostMessage(text);
             }
             catch (Exception e) { Plugin.L.LogError("host reply: " + e); }
             return false;
@@ -235,11 +235,13 @@ namespace DogShare
                 var n = d.npcData; var pd = n.petData;
                 if (pd == null) continue;
                 string h = Proto.Short(n.npcGUID);
-                int aff = (int)Math.Round(Mathf.Clamp01(pd.AffectionProgress) * 100f);
-                Reply(peer, Proto.Join("D", to, seq, mine.Count, h,
-                    Proto.Clean(n.characterData?.characterName, 20), pd.breedId, pd.affectionLevel, aff,
-                    pd.availableSkillPoints, pd.isStayCommand ? 1 : 0, pd.combatMode,
-                    PetReady(d) ? 1 : 0, pd.isUnconscious ? 1 : 0));
+                int netId = -1;
+                try { var sync = NetMonsterSync.instance; if (sync != null && d.pet != null) sync.HostTryGetNetId(d.pet, out netId); } catch { }
+                Reply(peer, Proto.Join("D", to, seq, mine.Count, h, n.npcGUID, netId,
+                    Proto.Clean(n.characterData?.characterName, 20), pd.breedId, pd.affectionLevel,
+                    pd.affectionXp.ToString("0.##", CultureInfo.InvariantCulture),
+                    pd.availableSkillPoints, pd.skillPointsSpent, pd.isStayCommand ? 1 : 0, pd.combatMode,
+                    pd.lastPetInGameTime.ToString("0.#####", CultureInfo.InvariantCulture), pd.isUnconscious ? 1 : 0));
 
                 var sb = new StringBuilder();
                 if (mgr != null)
@@ -250,7 +252,7 @@ namespace DogShare
                         int id = attr.petSkillId;
                         if (sb.Length > 0) sb.Append(';');
                         sb.Append(id).Append(':').Append(pd.GetSkillLevel(id)).Append(':')
-                          .Append(mgr.GetMaxLevel(id)).Append(':').Append(attr.requiredAffectionLevel);
+                          .Append(mgr.GetMaxLevel(id));
                     }
                 }
                 Reply(peer, Proto.Join("K", to, seq, h, sb.ToString()));

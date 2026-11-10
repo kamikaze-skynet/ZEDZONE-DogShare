@@ -8,10 +8,10 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 - **F7** (host): gives the dog closest to you to the player closest to you. Each guest can have up to 3.
 - **F8** (host): takes back the guest's dog closest to you.
 - A guest's dog follows them and fights for them. It's saved in the host's world, and links back to its owner when they rejoin.
-- **F6** (guest): opens a menu for the dogs the host gave you: Follow / Stay, combat mode (Passive, Defensive, Aggressive), Pet, Rename, Skills and Release. The host runs each action, so it works the same as on the host's own dogs.
+- **Guests use their dog like their own:** walk up to it for the game's **Commands / Pet** prompt, see it on the Teammates card, and use its orders menu (Follow, Stay, Passive, Defensive, Aggressive), rename it and spend its skill points. Each action is sent to the host and done there with the game's own code.
 - Guest dogs don't need feeding or healing from the guest. DogShare keeps them fed, and an unconscious dog wakes up by itself as usual.
 
-**The host needs DogShare for giving dogs. Guests need it too if they want the F6 menu.** A guest without it still gets a dog that follows and fights for them.
+**Everyone should have DogShare:** the host to give dogs, guests for the prompts and Teammates card. A guest without it still gets a dog that follows and fights for them.
 
 ## Requirements
 
@@ -40,7 +40,6 @@ Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare 1.0.
 |---|---|---|
 | `Keys.GiveDogKey` | `F7` | Give your nearest dog to the nearest guest. |
 | `Keys.TakeBackDogKey` | `F8` | Take back the nearest guest-owned dog. |
-| `Keys.DogMenuKey` | `F6` | Guest: open the menu for your dogs. |
 | `Rules.MaxDogsPerGuest` | `3` | How many dogs each guest can be given. |
 | `Rules.Range` | `8` | How close the guest / dog has to be. |
 | `Rules.KeepGuestDogsFed` | `true` | Keep guest-owned dogs' hunger full. |
@@ -48,13 +47,14 @@ Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare 1.0.
 ## How it works
 
 - `NetSim.singlePetSession` is true whenever the game is online. `PetSystem.CanRescueMorePets` then allows 1 pet instead of 3, and extra pets are frozen. DogShare makes it false on the host only.
-- The guest menu talks to the host with hidden lines on the game's co-op chat (`MsgChat` marked `@@DS1|`). The host answers only that guest with `NetworkManager.SendTo`, and every marked line is dropped in `NetChatSync.Append`, so nobody sees them. The host runs the game's own `ExecutePetCommand`, `TryUpgradeSkill`, `ReleasePet` etc. and only accepts requests for dogs owned by the sender's character.
+- On a guest's PC the host's dog is a stand-in `PetCharacterController` without pet data. DogShare gives it a mirror `GOAPNPCData`/`PetData` naming the guest as owner (matched by `NetMonsterSync` net id), so the game's own prompts, Teammates card and orders menu appear. Every action on a mirror (`ExecutePetCommand`, `ExecuteNPCCommand`, petting's `AddAffection`, skill upgrades, rename, release) is caught and sent to the host.
+- Guests talk to the host with hidden lines on the game's co-op chat (`MsgChat` marked `@@DS1|`). The host answers only that guest with `NetworkManager.SendTo`, and every marked line is dropped in `NetChatSync.Append`, so nobody sees them. The host runs the game's own `ExecutePetCommand`, `TryUpgradeSkill`, `ReleasePet` etc. and only accepts requests for dogs owned by the sender's character.
 - A dog's owner is its GOAP "leader". DogShare calls the game's own `GOAPAgent.SetLeader` with the guest's player character on the host, the same call hired teammates use, so the dog's owner id becomes the guest's character id and is saved with the world.
 
 ## Known limits
 
-- Guests use the F6 menu, not the game's own dog prompts: on a guest's PC the dog is only a copy of the host's, without its pet data.
-- Gear (collar, vest, saddlebag) and the saddlebag pouch aren't in the guest menu yet, since they'd mean moving items between the guest's inventory and the host's world.
+- Feed and first aid are switched off for shared dogs (the host's world keeps them fed; they wake up on their own).
+- Gear (collar, vest, saddlebag) and the saddlebag pouch aren't available to guests yet, since they'd mean moving items between the guest's inventory and the host's world.
 - The host can't open the game's menu on a guest's dog (the game checks the owner).
 - If a guest leaves, their dogs wait in the host's world until they come back.
 - Game updates may break it. Check `BepInEx\LogOutput.log` for `DogShare` lines and open an issue.
