@@ -20,8 +20,14 @@ namespace DogShare
     //                 N|dog|name           rename
     //                 S|dog|skillId        upgrade skill
     //                 R|dog                release
+    //                 F|dog|<item>         feed this item (already taken from the guest's backpack)
+    //                 A|dog|itemId         first aid with this item (already used up)
+    //                 G|dog|slot|<item>    set gear slot c(ollar) / v(est) / p(ouch); empty = unequipped
+    //                 U|dog|<inventory>    new saddlebag contents
+    //   <item>/<inventory> = xfer|i|n|base64 chunk, the game's own item bytes
     // Host -> guest:  D|to|seq|count|dog|npcGuid|netId|name|breed|level|xp|points|spent|stay|combat|lastPet|unconscious
     //                 K|to|seq|dog|id:level:max;...
+    //                 B|to|dog|slot|<item> gear slot contents (only when changed)
     //                 E|to|seq             end of list
     //                 M|to|text            message to show
     // "dog" is the first 8 characters of the dog's npcGUID, "to" the first 8 of the guest's characterId.
@@ -47,6 +53,65 @@ namespace DogShare
             return sb.ToString();
         }
         public static string[] Split(string s) => s.Substring(Mark.Length).Split('|');
+
+        // Items travel as the game's own bytes (NetItemSync / NetContainerSync serializers),
+        // base64 in chunks small enough for the 200-character chat limit.
+        const int Chunk = 140;
+        static int _xfer;
+        public static void SendBlob(Action<string> send, byte[] bytes, params object[] head)
+        {
+            string b64 = bytes == null || bytes.Length == 0 ? "" : Convert.ToBase64String(bytes);
+            int n = (b64.Length + Chunk - 1) / Chunk;
+            int x = ++_xfer;
+            if (n == 0) { send(Join(Concat(head, x, 0, 0, ""))); return; }
+            for (int i = 0; i < n; i++)
+                send(Join(Concat(head, x, i, n, b64.Substring(i * Chunk, Math.Min(Chunk, b64.Length - i * Chunk)))));
+        }
+        static object[] Concat(object[] head, params object[] tail)
+        {
+            var r = new object[head.Length + tail.Length];
+            head.CopyTo(r, 0); tail.CopyTo(r, head.Length);
+            return r;
+        }
+
+        static readonly Dictionary<string, string[]> _parts = new Dictionary<string, string[]>();
+        // p = split message; the last four fields are xfer|i|n|chunk. Returns the bytes once complete.
+        public static bool Collect(string owner, string[] p, out byte[] bytes)
+        {
+            bytes = null;
+            int k = p.Length - 4;
+            if (k < 1) return false;
+            int i = ToInt(p[k + 1]), n = ToInt(p[k + 2]);
+            if (n == 0) { bytes = new byte[0]; return true; }
+            string key = owner + "|" + p[0] + "|" + p[k];
+            if (!_parts.TryGetValue(key, out var arr) || arr.Length != n) { arr = new string[n]; _parts[key] = arr; }
+            if (i < 0 || i >= n) return false;
+            arr[i] = p[k + 3];
+            foreach (var c in arr) if (c == null) return false;
+            _parts.Remove(key);
+            try { bytes = Convert.FromBase64String(string.Concat(arr)); return true; }
+            catch { return false; }
+        }
+        static int ToInt(string s) => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : -1;
+
+        public static byte[] ItemBytes(ItemData item)
+        {
+            if (item == null) return new byte[0];
+            var a = NetItemSync.SerializeItemData(item);
+            return a == null ? new byte[0] : (byte[])a;
+        }
+        public static ItemData ItemFrom(byte[] b) => b == null || b.Length == 0 ? null : NetItemSync.DeserializeItemData(b);
+        public static byte[] InvBytes(InventoryData inv)
+        {
+            if (inv == null) return new byte[0];
+            var a = NetContainerSync.SerializeInventory(inv);
+            return a == null ? new byte[0] : (byte[])a;
+        }
+        public static string Hash(byte[] b)
+        {
+            if (b == null || b.Length == 0) return "-";
+            using (var sha = System.Security.Cryptography.SHA1.Create()) return Convert.ToBase64String(sha.ComputeHash(b));
+        }
     }
 
     [HarmonyPatch]
@@ -107,8 +172,19 @@ namespace DogShare
             string op = p[0];
             string to = Proto.Short(charId);
 
-            if (op == "L") { SendList(peer, charId); return; }
+            if (op == "L")
+            {
+                if (p.Length > 1 && p[1] == "1") ForgetGear(charId);   // guest wants everything again
+                SendList(peer, charId); return;
+            }
             if (p.Length < 2) return;
+
+            // item transfers arrive in chunks; wait for the last one
+            byte[] blob = null;
+            if (op == "F" || op == "G" || op == "U")
+            {
+                if (!Proto.Collect(charId, p, out blob)) return;
+            }
 
             var dog = FindDog(charId, p[1]);
             if (dog == null) { Reply(peer, Proto.Join("M", to, "That dog isn't yours any more.")); SendList(peer, charId); return; }
@@ -121,6 +197,10 @@ namespace DogShare
                 case "N": note = Rename(dog, p.Length > 2 ? Proto.Clean(p[2], 20) : ""); break;
                 case "S": note = Skill(dog, p.Length > 2 ? p[2] : "", charId); break;
                 case "R": note = Release(dog); break;
+                case "F": note = Feed(dog, blob); break;
+                case "A": note = FirstAid(dog, p.Length > 2 ? p[2] : ""); break;
+                case "G": note = SetGear(dog, p.Length > 2 ? p[2] : "", blob, charId); break;
+                case "U": note = SetPouch(dog, blob, charId); break;
             }
             if (!string.IsNullOrEmpty(note)) Reply(peer, Proto.Join("M", to, Proto.Clean(note, 150)));
             SendList(peer, charId);
@@ -219,6 +299,85 @@ namespace DogShare
             return PetSystem.ReleasePet(n) ? (string.IsNullOrEmpty(name) ? "Released." : name + " was released.") : "Couldn't release that dog.";
         }
 
+        static string Feed(GOAPAgent_Pet dog, byte[] blob)
+        {
+            var pc = dog.pet; var item = Proto.ItemFrom(blob);
+            if (pc == null || item == null) return null;
+            pc.EatFood(item, PetSystem.affectionFeed, true);
+            Changed(dog);
+            return null;
+        }
+
+        static string FirstAid(GOAPAgent_Pet dog, string idText)
+        {
+            var pc = dog.pet; var pd = dog.npcData?.petData;
+            if (pc == null || pd == null || !int.TryParse(idText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id)) return null;
+            float pct = PetSystem.GetFirstAidHealPercent(id);
+            pc.HealByFirstAid(pct);
+            if (pd.isUnconscious) { try { pc.WakeUp(pct, true); } catch { } }
+            Changed(dog);
+            return null;
+        }
+
+        // The guest's game already moved the item between their backpack and their copy of the slot;
+        // the real dog's slot just becomes what they sent.
+        static string SetGear(GOAPAgent_Pet dog, string slot, byte[] blob, string charId)
+        {
+            var pc = dog.pet; var pd = dog.npcData?.petData;
+            if (pc == null || pd == null) return null;
+            var item = Proto.ItemFrom(blob);
+            switch (slot)
+            {
+                case "c": pd.collarItem = item; break;
+                case "v": pd.vestItem = item; break;
+                case "p": pd.pouchItem = item; break;
+                default: return null;
+            }
+            try { PetSystem.EnsurePouchSize(pd); } catch { }
+            try { pc.RefreshProperties(); } catch { }
+            try { pc.RefreshGearVisual(); } catch { }
+            Changed(dog);
+            RememberGear(charId, dog.npcData.npcGUID, slot, Proto.ItemBytes(GearItem(pd, slot)));
+            return null;
+        }
+
+        static string SetPouch(GOAPAgent_Pet dog, byte[] blob, string charId)
+        {
+            var pd = dog.npcData?.petData;
+            var inv = pd?.pouchItem?.inventoryData;
+            if (inv == null || blob == null) return null;
+            var incoming = NetContainerSync.DeserializeInventory(blob);
+            if (incoming == null) return null;
+            NetItemSync.ReplaceInventoryContents(inv, incoming);
+            RememberGear(charId, dog.npcData.npcGUID, "p", Proto.ItemBytes(pd.pouchItem));
+            return null;
+        }
+
+        internal static ItemData GearItem(PetData pd, string slot) =>
+            slot == "c" ? pd.collarItem : slot == "v" ? pd.vestItem : slot == "p" ? pd.pouchItem : null;
+
+        // What each guest's copy of each gear slot currently is, so we only resend changes.
+        static readonly Dictionary<string, string> _sentGear = new Dictionary<string, string>();
+        static void ForgetGear(string charId)
+        {
+            foreach (var k in new List<string>(_sentGear.Keys)) if (k.StartsWith(charId + "|", StringComparison.Ordinal)) _sentGear.Remove(k);
+        }
+        static void RememberGear(string charId, string guid, string slot, byte[] bytes) => _sentGear[charId + "|" + guid + "|" + slot] = Proto.Hash(bytes);
+
+        static void SendGear(NetPeer peer, string charId, string to, GOAPAgent_Pet d)
+        {
+            var n = d.npcData; var pd = n.petData;
+            foreach (var slot in new[] { "c", "v", "p" })
+            {
+                byte[] bytes;
+                try { bytes = Proto.ItemBytes(GearItem(pd, slot)); } catch (Exception e) { Plugin.L.LogWarning("gear " + slot + ": " + e.Message); continue; }
+                string key = charId + "|" + n.npcGUID + "|" + slot, h = Proto.Hash(bytes);
+                if (_sentGear.TryGetValue(key, out var old) && old == h) continue;
+                _sentGear[key] = h;
+                Proto.SendBlob(t => Reply(peer, t), bytes, "B", to, Proto.Short(n.npcGUID), slot);
+            }
+        }
+
         static void Changed(GOAPAgent_Pet dog)
         {
             try { PetPanel.NotifyPetChanged(dog.npcData); } catch { }
@@ -256,6 +415,7 @@ namespace DogShare
                     }
                 }
                 Reply(peer, Proto.Join("K", to, seq, h, sb.ToString()));
+                SendGear(peer, charId, to, d);
             }
             Reply(peer, Proto.Join("E", to, seq));
         }

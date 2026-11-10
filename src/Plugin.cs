@@ -22,7 +22,7 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.2.0";
+        public const string Version = "1.3.0";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+- Guests can now feed their dog and give it first aid with the game's own pickers; the item comes out of their backpack and the host feeds / heals the real dog.
+- Guests can equip and unequip the collar, vest and saddlebag from the pet panel; items move between their backpack and the dog.
+- Guests can open the saddlebag (Open Saddlebag) and move items in and out; changes are saved to the host's world.
+
 ## 1.2.0
 - Guests now use shared dogs through the game's own UI: the Commands / Pet prompt at the dog, the Teammates card and the orders menu (Follow, Stay, Passive, Defensive, Aggressive), plus rename and skills. No extra keys.
 - Removed the F6 menu (the game's build strips Unity's IMGUI, so it couldn't draw).

@@ -22,7 +22,15 @@ namespace DogShare
             public GOAPNPCData Data; public PetData Pet;
             public IntPtr AttachedTo;
             public bool OnPanel;
+            public readonly Dictionary<string, string> GearHash = new Dictionary<string, string>();
         }
+
+        // Latest gear bytes from the host, by dog handle and slot (applied when the mirror exists).
+        static readonly Dictionary<string, byte[]> _gear = new Dictionary<string, byte[]>();
+        // Saddlebag currently open on this PC
+        static Mirror _pouchOpen;
+        static string _pouchHash;
+        static float _nextPouchCheck, _pouchClosedAt = -100f;
 
         // npcData pointer -> mirror, for the patches
         internal static readonly Dictionary<IntPtr, Mirror> ByPtr = new Dictionary<IntPtr, Mirror>();
@@ -36,6 +44,7 @@ namespace DogShare
         static int _probes;
         static float _nextPoll, _nextProbe;
         static bool _wasGuest;
+        static bool _askFull = true;
 
         internal static bool IsGuest()
         {
@@ -71,7 +80,7 @@ namespace DogShare
                 bool guest = IsGuest();
                 if (!guest)
                 {
-                    if (_wasGuest) { DetachAll(); _hostHasMod = false; _probes = 0; }
+                    if (_wasGuest) { DetachAll(); _hostHasMod = false; _probes = 0; _askFull = true; _gear.Clear(); }
                     _wasGuest = false;
                     return;
                 }
@@ -81,16 +90,68 @@ namespace DogShare
                 float now = Time.unscaledTime;
                 if (_hostHasMod)
                 {
-                    if (now >= _nextPoll) { _nextPoll = now + 3f; Send("L"); }
+                    if (now >= _nextPoll) { _nextPoll = now + 3f; Send("L", _askFull ? "1" : "0"); _askFull = false; }
                 }
                 else if (_probes < 3 && now >= _nextProbe)
                 {
                     // Ask once in a while whether the host runs DogShare. A host without it would show this line in chat, so only 3 tries.
-                    _probes++; _nextProbe = now + 30f; Send("L");
+                    _probes++; _nextProbe = now + 30f; Send("L", "1"); _askFull = false;
                 }
             }
             catch (Exception e) { Plugin.L.LogError("guest update: " + e.Message); }
+            try { TickPouch(); } catch (Exception e) { Plugin.L.LogError("saddlebag: " + e.Message); _pouchOpen = null; }
         }
+
+        // ---------------------------------------------------------------- saddlebag
+        internal static void OpenPouch(Mirror m)
+        {
+            var inv = m.Pet.pouchItem?.inventoryData;
+            if (inv == null) { Note("Your dog isn't wearing a saddlebag."); return; }
+            var panel = LootInventoryPanel.instance;
+            if (panel == null) return;
+            panel.OpenPanel(inv, m.Data.characterData?.characterName ?? "Saddlebag");
+            _pouchOpen = m;
+            _pouchHash = Proto.Hash(Proto.InvBytes(inv));
+            _nextPouchCheck = Time.unscaledTime + 0.5f;
+        }
+
+        static bool PouchStillOpen(InventoryData inv)
+        {
+            var panel = LootInventoryPanel.instance;
+            if (panel == null || !panel.gameObject.activeInHierarchy) return false;
+            var datas = new Il2CppSystem.Collections.Generic.List<InventoryData>();
+            var names = new Il2CppSystem.Collections.Generic.List<string>();
+            panel.GetOpenedInventoryStack(datas, names);
+            for (int i = 0; i < datas.Count; i++) if (datas[i] != null && datas[i].Pointer == inv.Pointer) return true;
+            return false;
+        }
+
+        static void TickPouch()
+        {
+            var m = _pouchOpen;
+            if (m == null || Time.unscaledTime < _nextPouchCheck) return;
+            _nextPouchCheck = Time.unscaledTime + 0.5f;
+            var inv = m.Pet.pouchItem?.inventoryData;
+            bool open = inv != null && PouchStillOpen(inv);
+            if (inv != null)
+            {
+                var bytes = Proto.InvBytes(inv);
+                var h = Proto.Hash(bytes);
+                if (h != _pouchHash)
+                {
+                    _pouchHash = h;
+                    Proto.SendBlob(t => SendRaw(t), bytes, "U", m.Handle);
+                }
+            }
+            if (!open) { _pouchOpen = null; _pouchClosedAt = Time.unscaledTime; }
+        }
+
+        static void SendRaw(string text)
+        {
+            try { NetChatSync.instance.SendChat(text); } catch (Exception e) { Plugin.L.LogError("send: " + e.Message); }
+        }
+
+        internal static void SendItem(byte[] bytes, params object[] head) => Proto.SendBlob(t => SendRaw(t), bytes, head);
 
         // ---------------------------------------------------------------- host replies
         internal static void OnHostMessage(string text)
@@ -128,6 +189,14 @@ namespace DogShare
                         var f = part.Split(':');
                         if (f.Length >= 2) d.Skills.Add(new[] { I(f[0]), I(f[1]) });
                     }
+                    break;
+                }
+                case "B":
+                {
+                    if (p.Length < 8) return;
+                    if (!Proto.Collect("host", p, out var bytes)) return;
+                    _gear[p[2] + "|" + p[3]] = bytes;
+                    foreach (var m in ByGuid.Values) if (m.Handle == p[2]) ApplyGear(m);
                     break;
                 }
                 case "E":
@@ -182,6 +251,8 @@ namespace DogShare
             pd.combatMode = d.Combat;
             pd.lastPetInGameTime = d.LastPet;
             foreach (var s in d.Skills) { try { pd.SetSkillLevel(s[0], s[1]); } catch { } }
+            try { pd.isUnconscious = d.Unc; } catch { }
+            ApplyGear(m);
 
             // The stand-in dog on this PC.
             PetCharacterController pc = null;
@@ -223,6 +294,34 @@ namespace DogShare
                 try { TeamNPCPanel.instance?.AddNPC(m.Data); m.OnPanel = true; } catch (Exception e) { Plugin.L.LogWarning("team card: " + e.Message); m.OnPanel = true; }
             }
             try { PetPanel.NotifyPetChanged(m.Data); } catch { }
+        }
+
+        static void ApplyGear(Mirror m)
+        {
+            foreach (var slot in new[] { "c", "v", "p" })
+            {
+                if (!_gear.TryGetValue(m.Handle + "|" + slot, out var bytes)) continue;
+                var h = Proto.Hash(bytes);
+                if (m.GearHash.TryGetValue(slot, out var old) && old == h) continue;
+                if (slot == "p" && (_pouchOpen == m || Time.unscaledTime - _pouchClosedAt < 2f)) continue;   // don't swap a bag that's open here
+                ItemData item = null;
+                try { item = Proto.ItemFrom(bytes); } catch (Exception e) { Plugin.L.LogWarning("gear copy: " + e.Message); continue; }
+                if (slot == "c") m.Pet.collarItem = item;
+                else if (slot == "v") m.Pet.vestItem = item;
+                else m.Pet.pouchItem = item;
+                m.GearHash[slot] = h;
+                try { PetPanel.NotifyPetChanged(m.Data); } catch { }
+            }
+        }
+
+        internal static void GearChangedHere(Mirror m, string slot)
+        {
+            var item = HostHandler.GearItem(m.Pet, slot);
+            var bytes = Proto.ItemBytes(item);
+            m.GearHash[slot] = Proto.Hash(bytes);
+            _gear[m.Handle + "|" + slot] = bytes;
+            SendItem(bytes, "G", m.Handle, slot);
+            if (slot == "p" && _pouchOpen == m && item == null) _pouchOpen = null;
         }
 
         static void Remove(Mirror m)
@@ -278,7 +377,7 @@ namespace DogShare
                 }
                 try { PetPanel.NotifyPetChanged(m.Data); } catch { }
             }
-            else if (cmd == "OpenPouch") GuestMirror.Note("The saddlebag of a shared dog can only be opened by the host.");
+            else if (cmd == "OpenPouch") GuestMirror.OpenPouch(m);
             return true;
         }
 
@@ -325,22 +424,98 @@ namespace DogShare
             catch { return true; }
         }
 
-        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.OpenFeedSelect))]
-        [HarmonyPrefix]
-        static bool OpenFeedSelect(PetCharacterController __instance)
+        static CharacterData LocalCharacter()
         {
-            if (GuestMirror.Of(__instance?.npcData) == null) return true;
-            GuestMirror.Note("Shared dogs are kept fed by the host's world.");
-            return false;
+            try { return DogShareBehaviour.HostPlayer()?.characterData; } catch { return null; }
         }
 
-        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.OpenFirstAidSelect))]
+        // Feeding: the game's own food picker opens as usual. When you pick, one item comes out of
+        // your backpack and the host feeds it to the real dog.
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.OnSelectFoodTool))]
         [HarmonyPrefix]
-        static bool OpenFirstAidSelect(PetCharacterController __instance)
+        static bool OnSelectFoodTool(PetCharacterController __instance, ToolData toolData)
         {
-            if (GuestMirror.Of(__instance?.npcData) == null) return true;
-            GuestMirror.Note("Your dog will wake up on its own.");
-            return false;
+            try
+            {
+                var m = GuestMirror.Of(__instance?.npcData);
+                if (m == null) return true;
+                var item = toolData?.itemData;
+                var me = LocalCharacter();
+                if (item == null || me == null) return false;
+                var bytes = Proto.ItemBytes(item);
+                if (!BasicCharacterController.ConsumeOneItemFromCharacter(me, item, true)) return false;
+                GuestMirror.SendItem(bytes, "F", m.Handle);
+                try { GameController.instance.RefreshInventoryPanels(); } catch { }
+                try { __instance.PlayHappy(); } catch { }
+                return false;
+            }
+            catch (Exception e) { Plugin.L.LogError("feed: " + e.Message); return false; }
+        }
+
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.OnSelectFirstAidTool))]
+        [HarmonyPrefix]
+        static bool OnSelectFirstAidTool(PetCharacterController __instance, ToolData toolData)
+        {
+            try
+            {
+                var m = GuestMirror.Of(__instance?.npcData);
+                if (m == null) return true;
+                var item = toolData?.itemData;
+                var me = LocalCharacter();
+                if (item == null || me == null) return false;
+                int id = item.itemId;
+                if (!BasicCharacterController.ConsumeOneItemFromCharacter(me, item, true)) return false;
+                GuestMirror.Send("A", m.Handle, id);
+                try { GameController.instance.RefreshInventoryPanels(); } catch { }
+                return false;
+            }
+            catch (Exception e) { Plugin.L.LogError("first aid: " + e.Message); return false; }
+        }
+
+        // Gear: the game's own pet panel moves the item between your backpack and your copy of the
+        // slot; afterwards we send the slot's new contents to the host.
+        static string[] GearPtrs(GuestMirror.Mirror m) => new[]
+        {
+            P(m.Pet.collarItem), P(m.Pet.vestItem), P(m.Pet.pouchItem)
+        };
+        static string P(ItemData i) => i == null ? "0" : i.Pointer.ToString();
+        static void SendGearChanges(GuestMirror.Mirror m, string[] before)
+        {
+            var after = GearPtrs(m);
+            string[] slots = { "c", "v", "p" };
+            for (int i = 0; i < 3; i++) if (before[i] != after[i]) GuestMirror.GearChangedHere(m, slots[i]);
+        }
+
+        [HarmonyPatch(typeof(PetPanel), nameof(PetPanel.OnSelectEquipTool))]
+        [HarmonyPrefix]
+        static void EquipPre(PetPanel __instance, out string[] __state)
+        {
+            __state = null;
+            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) __state = GearPtrs(m); } catch { }
+        }
+
+        [HarmonyPatch(typeof(PetPanel), nameof(PetPanel.OnSelectEquipTool))]
+        [HarmonyPostfix]
+        static void EquipPost(PetPanel __instance, string[] __state)
+        {
+            if (__state == null) return;
+            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) SendGearChanges(m, __state); } catch (Exception e) { Plugin.L.LogError("equip: " + e.Message); }
+        }
+
+        [HarmonyPatch(typeof(PetPanel), nameof(PetPanel.OnEquipSlotClick))]
+        [HarmonyPrefix]
+        static void SlotPre(PetPanel __instance, out string[] __state)
+        {
+            __state = null;
+            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) __state = GearPtrs(m); } catch { }
+        }
+
+        [HarmonyPatch(typeof(PetPanel), nameof(PetPanel.OnEquipSlotClick))]
+        [HarmonyPostfix]
+        static void SlotPost(PetPanel __instance, string[] __state)
+        {
+            if (__state == null) return;
+            try { var m = GuestMirror.Of(__instance?.boundPet); if (m != null) SendGearChanges(m, __state); } catch (Exception e) { Plugin.L.LogError("unequip: " + e.Message); }
         }
 
         [HarmonyPatch(typeof(PetPanel), nameof(PetPanel.OnUpgradeSkillClick))]
