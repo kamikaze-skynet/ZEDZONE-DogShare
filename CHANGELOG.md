@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.4
+- Fetch works for shared dogs. When a guest throws a tennis ball, the host now tells that guest's dogs about it (the game only did this for the host's own throws), and when the dog brings it back the ball goes into the guest's backpack (or at their feet if it's full) instead of disappearing into the guest's stand-in on the host.
+- Logs every step of a fetch (throw, which dog went for it or why none did, ball returned).
+
 ## 1.4.3
 - Dog sounds are synced for players with DogShare: barks, whines and the happy / soft sounds a dog makes on the host also play on every guest's copy of that dog (the game only played them for the host). Petting a shared dog now also makes its happy sound.
 

@@ -483,7 +483,7 @@ namespace DogShare
         }
 
         static bool _sendToBroken;
-        static void Reply(NetPeer peer, string text)
+        internal static void Reply(NetPeer peer, string text)
         {
             if (text.Length > 200) text = text.Substring(0, 200);
             if (!_sendToBroken)

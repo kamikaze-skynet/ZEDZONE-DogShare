@@ -21,6 +21,7 @@ namespace DogShare
         // ---------------------------------------------------------------- host
         static readonly Dictionary<string, NetPeer> _peers = new Dictionary<string, NetPeer>();
         internal static void RememberPeer(string charId, NetPeer peer) { if (!string.IsNullOrEmpty(charId) && peer != null) _peers[charId] = peer; }
+        internal static NetPeer PeerOf(string charId) => !string.IsNullOrEmpty(charId) && _peers.TryGetValue(charId, out var p) ? p : null;
 
         internal static void BroadcastToGuests(string text, string exceptCharId = null)
         {

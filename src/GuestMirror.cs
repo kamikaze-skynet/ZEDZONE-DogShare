@@ -36,6 +36,7 @@ namespace DogShare
         // npcData pointer -> mirror, for the patches
         internal static readonly Dictionary<IntPtr, Mirror> ByPtr = new Dictionary<IntPtr, Mirror>();
         static readonly Dictionary<string, Mirror> ByGuid = new Dictionary<string, Mirror>();
+        internal static int Count => ByGuid.Count;
 
         class Incoming { public string Handle, Guid, Name; public int NetId, Breed, Level, Points, Spent, Combat; public float Xp, LastPet, Hunger = -1f; public bool Stay, Unc; public List<int[]> Skills = new List<int[]>(); }
         static readonly Dictionary<string, Incoming> _incoming = new Dictionary<string, Incoming>();
@@ -251,6 +252,9 @@ namespace DogShare
                     foreach (var m in ByGuid.Values) if (m.Handle == p[2]) ApplyGear(m);
                     break;
                 }
+                case "I":
+                    Fetch.GuestOnBall(p);
+                    break;
                 case "E":
                     if (_incoming.Count > 0 && I(p[2]) != _incomingSeq) return;
                     {

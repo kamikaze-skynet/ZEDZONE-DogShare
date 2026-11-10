@@ -22,7 +22,7 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.4.3";
+        public const string Version = "1.4.4";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
@@ -51,7 +51,7 @@ namespace DogShare
 
             var harmony = new Harmony(Guid);
             int ok = 0, failed = 0;
-            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches) })
+            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches) })
             {
                 try
                 {
@@ -138,6 +138,7 @@ namespace DogShare
                 string role = !NetworkManager.isOnline ? "offline / single-player" : NetworkManager.isClient ? "guest" : "host";
                 DLog.Change("role", "role", "Now " + role);
                 if (!NetworkManager.isOnline || NetworkManager.isClient) return;   // host only
+                Fetch.HostTick();
                 if (Time.unscaledTime >= _nextStatus) { _nextStatus = Time.unscaledTime + 30f; Status(); }
                 if (Pressed(Plugin.GiveKey.Value)) Give();
                 else if (Pressed(Plugin.TakeKey.Value)) TakeBack();
