@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.2
+- Fix: guests ignored the host's dog list (expected 19 fields per dog, the host sends 17), so a given dog never got its prompts or Teammates card on the guest's PC. A malformed entry is now logged as an error.
+
 ## 1.3.1
 - Detailed logging on host and guest: its own `BepInEx\DogShare.log` plus `LogOutput.log`, with a category and timestamp per line, a check of every game hook at start-up, each request and its result, items moving between PCs, and a status summary every 30 s. `Debug.VerboseLog` adds raw requests/replies.
 

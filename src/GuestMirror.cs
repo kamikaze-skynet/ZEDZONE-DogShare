@@ -197,7 +197,7 @@ namespace DogShare
                     break;
                 case "D":
                 {
-                    if (p.Length < 19) return;
+                    if (p.Length < 17) { DLog.Error("guest", $"Couldn't read a dog entry from the host ({p.Length} fields, expected 17) - is the host on the same DogShare version?"); return; }
                     int seq = I(p[2]);
                     if (seq != _incomingSeq) { _incoming.Clear(); _incomingSeq = seq; }
                     var d = new Incoming
@@ -212,7 +212,7 @@ namespace DogShare
                 case "K":
                 {
                     if (p.Length < 5 || I(p[2]) != _incomingSeq) return;
-                    if (!_incoming.TryGetValue(p[3], out var d)) return;
+                    if (!_incoming.TryGetValue(p[3], out var d)) { DLog.Warn("guest", $"Got skills for dog {p[3]} without its entry - skipped"); return; }
                     d.Skills.Clear();
                     foreach (var part in p[4].Split(';'))
                     {
