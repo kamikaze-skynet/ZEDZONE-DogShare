@@ -21,6 +21,7 @@ namespace DogShare
             public string Handle, Guid; public int NetId;
             public GOAPNPCData Data; public PetData Pet;
             public IntPtr AttachedTo;
+            public PetCharacterController Pc;
             public bool OnPanel;
             public readonly Dictionary<string, string> GearHash = new Dictionary<string, string>();
         }
@@ -102,7 +103,23 @@ namespace DogShare
                 }
             }
             catch (Exception e) { DLog.Error("error", "Guest update failed", e); }
+            try { TickInteract(); } catch (Exception e) { DLog.Throttle("interr", 30f, "error", "Range check for shared dogs failed: " + e.Message); }
             try { TickPouch(); } catch (Exception e) { DLog.Error("item", "Saddlebag sync failed - stopped syncing it", e); _pouchOpen = null; }
+        }
+
+        // Stand-ins don't run the game's own "is the player close enough to interact" check (that runs from
+        // the dog's AI update, which the host does for this dog). Run it here for our shared dogs so the
+        // game's Commands / Pet / Feed prompt appears and disappears as you walk up and away.
+        static void TickInteract()
+        {
+            if (ByGuid.Count == 0) return;
+            foreach (var m in ByGuid.Values)
+            {
+                var pc = m.Pc;
+                if (pc == null) continue;
+                if (pc.npcData == null || pc.npcData.Pointer != m.Data.Pointer) continue;
+                pc.UpdateCharacterInteractCheck();
+            }
         }
 
         static float _nextStatus;
@@ -136,6 +153,8 @@ namespace DogShare
             if (inv == null) { DLog.Info("item", "Open saddlebag: the dog has no saddlebag on"); Note("Your dog isn't wearing a saddlebag."); return; }
             var panel = LootInventoryPanel.instance;
             if (panel == null) { DLog.Error("item", "Open saddlebag: the game's loot window isn't available"); return; }
+            try { PlayerPanel.instance?.OpenPanel(); }   // the game opens your backpack next to the saddlebag
+            catch (Exception e) { DLog.Error("item", "Opening the backpack panel failed", e); }
             panel.OpenPanel(inv, m.Data.characterData?.characterName ?? "Saddlebag");
             _pouchOpen = m;
             _pouchHash = Proto.Hash(Proto.InvBytes(inv));
@@ -310,12 +329,14 @@ namespace DogShare
                     if (!string.IsNullOrEmpty(d.Name)) cd.characterName = d.Name;
                     m.Data.characterData = cd;
                 }
+                m.Pc = pc;
                 var agent = pc.petAgent;
                 if (agent != null && (agent.npcData == null || agent.npcData.Pointer != m.Data.Pointer))
                 {
                     agent.npcData = m.Data;
                     agent.enabled = false;            // the host runs this dog's AI, not us
                     m.AttachedTo = pc.Pointer;
+                    m.Pc = pc;
                     try { pc.RefreshInteracts(); } catch (Exception e) { DLog.Error("guest", "RefreshInteracts failed", e); }
                     bool readsBack = pc.npcData != null && pc.npcData.Pointer == m.Data.Pointer;
                     bool owned = false; try { owned = pc.IsOwnedByLocalPlayer(); } catch { }
@@ -464,6 +485,20 @@ namespace DogShare
         }
 
         // Petting finishes with AddAffection; the host applies the real affection (and its cooldown).
+        [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.OnEnterPlayerInteractRange))]
+        [HarmonyPostfix]
+        static void EnterRange(PetCharacterController __instance)
+        {
+            try
+            {
+                var m = GuestMirror.Of(__instance?.npcData);
+                if (m == null) return;
+                GameObject io = null; try { io = __instance.interactObject; } catch { }
+                DLog.Throttle("range|" + m.Guid, 10f, "guest", $"Walked up to '{m.Data.characterData?.characterName}' - the game's prompt should show now (interact object {(io == null ? "MISSING" : io.activeInHierarchy ? "active" : "inactive")})");
+            }
+            catch { }
+        }
+
         [HarmonyPatch(typeof(PetCharacterController), nameof(PetCharacterController.AddAffection))]
         [HarmonyPrefix]
         static bool AddAffection(PetCharacterController __instance)

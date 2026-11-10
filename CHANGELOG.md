@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.3
+- Fix: the Commands / Pet / Feed prompt didn't appear when a guest walked up to their dog. Stand-ins don't run the game's interact-range check, so DogShare now runs it for shared dogs every frame.
+- Fix: the host kept a given dog on their Teammates card and could still command it. Giving a dog now removes it from the host's team list and card (also cleans up dogs given with older versions); taking it back puts it back.
+- Fix: Open Saddlebag on a guest now opens their backpack next to the saddlebag, like the game does.
+- More logging: walking into a shared dog's interact range, team list changes on the host.
+
 ## 1.3.2
 - Fix: guests ignored the host's dog list (expected 19 fields per dog, the host sends 17), so a given dog never got its prompts or Teammates card on the guest's PC. A malformed entry is now logged as an error.
 

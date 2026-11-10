@@ -22,7 +22,7 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.3.2";
+        public const string Version = "1.3.3";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
@@ -318,6 +318,7 @@ namespace DogShare
             else
                 DLog.Info("host", "Dog's owner and leader are now the guest - OK");
             try { PetPanel.NotifyPetRemoved(dog.npcData); } catch { }
+            DropFromHostTeam(host, dog.npcData, "given away");
             Say($"Gave your dog to {GuestName(guest)} ({has + 1}/{Plugin.MaxPerGuest.Value}).");
         }
 
@@ -343,7 +344,27 @@ namespace DogShare
             DLog.Info("host", $"Taking back dog {DLog.S(dog.npcData?.npcGUID)} '{dog.npcData?.characterData?.characterName}' from {DLog.S(GuidOf(dog))}");
             dog.SetLeader(host);
             try { PetPanel.NotifyPetChanged(dog.npcData); } catch { }
+            try { host.characterData.AddTeamNPC(dog.npcData); host.characterData.SyncTeamUI(); DLog.Info("host", "Dog is back on my Teammates card"); }
+            catch (Exception e) { DLog.Error("host", "Couldn't put the dog back on my Teammates card", e); }
             Say("DogShare: you took the dog back.");
+        }
+
+        // A dog joins its leader's team list and Teammates card. When it's given away, take it off the host's,
+        // or the host keeps commanding it from the card.
+        internal static void DropFromHostTeam(HumanCharacterController host, GOAPNPCData npc, string why)
+        {
+            if (host == null || npc == null) return;
+            try
+            {
+                var cd = host.characterData;
+                bool listed = false;
+                try { listed = cd.teamNPCGuids != null && cd.teamNPCGuids.Contains(npc.npcGUID); } catch { }
+                if (listed) cd.RemoveTeamNPC(npc);
+                try { TeamNPCPanel.instance?.RemoveNPC(npc); } catch { }
+                try { cd.SyncTeamUI(); } catch { }
+                DLog.Info("host", $"Removed dog {DLog.S(npc.npcGUID)} from my team / Teammates card ({why}; was in team list: {listed})");
+            }
+            catch (Exception e) { DLog.Error("host", "Couldn't take the dog off my Teammates card", e); }
         }
 
         void Status()
@@ -383,6 +404,14 @@ namespace DogShare
             {
                 var gid = GuidOf(dog);
                 if (string.IsNullOrEmpty(gid) || gid == hostId || Same(dog.leaderCharacter, host)) continue;
+
+                // given away earlier (or before this fix) but still on the host's team list
+                try
+                {
+                    var tl = host?.characterData?.teamNPCGuids;
+                    if (tl != null && dog.npcData != null && tl.Contains(dog.npcData.npcGUID)) DropFromHostTeam(host, dog.npcData, "belongs to a guest");
+                }
+                catch { }
 
                 if (byId.TryGetValue(gid, out var owner) && owner != null)
                 {
