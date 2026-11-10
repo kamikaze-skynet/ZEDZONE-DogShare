@@ -11,6 +11,9 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 - **Guests use their dog like their own:** the game's **Commands / Pet / Feed** prompt at the dog, the Teammates card and its orders menu (Follow, Stay, Passive, Defensive, Aggressive), rename, skills, first aid, gear (collar, vest, saddlebag) and the saddlebag's storage. Food, medicine and gear come from and go back to the guest's own backpack; the host does each action on the real dog with the game's own code.
 - **Animations and sounds are synced** for players with DogShare: dogs sitting to be petted or eating, their barks, whines and happy sounds, and the petting pose reach everyone (the game itself only plays them on the host / the PC doing it).
 - **Shared dogs get hungry like any dog**, and whoever owns one feeds it (the host his own, a guest theirs, with the game's food picker). `AutoFeedGuestDogs` turns on an automatic top-up instead.
+- **Fetch:** a guest throws a tennis ball, their dog runs after it and brings it back to their backpack (or their feet if it's full).
+- **Gifts:** when a guest's dog brings them something, the guest gets the game's "Bear brought you a dead crow" notice (the game only showed it to the host).
+- **Speech bubbles** over dogs show for everyone.
 
 **Everyone should have DogShare:** the host to give dogs, guests for the prompts and Teammates card. A guest without it still gets a dog that follows and fights for them.
 
@@ -24,7 +27,7 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 - **Steam Workshop:** subscribe to [DogShare](https://steamcommunity.com/sharedfiles/filedetails/?id=3837154256). The loader picks it up automatically.
 - **Manually:** put `DogShare.dll` in `%USERPROFILE%\AppData\LocalLow\LevenLiu\ZEDZONE\Mods\DogShare\`.
 
-Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare 1.0.0 loaded`.
+Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare <version> loaded`.
 
 ## How to use it
 

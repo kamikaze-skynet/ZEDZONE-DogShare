@@ -1,36 +1,75 @@
-[h1]DogShare - co-op dogs for guests[/h1]
+[h1]DogShare - co-op dogs for every player[/h1]
 
-In co-op the game only allows [b]one dog for the whole session[/b], and only the host can rescue it. DogShare lets the host hand dogs to the other players.
+In co-op, ZED ZONE only allows [b]one dog for the whole session[/b], and only the host can rescue it. DogShare lets the host keep 3 dogs again and hand dogs to the other players. Each player's dog works like it does in single-player.
 
+[h2]What it does[/h2]
 [list]
 [*]The host can keep [b]3 dogs[/b] in co-op again, like single-player.
-[*][b]F7[/b] (host): gives the dog closest to you to the player closest to you. Up to 3 per guest.
-[*][b]F8[/b] (host): takes back the guest's dog closest to you.
-[*]A guest's dog follows them and fights for them, is saved in the host's world, and links back to them when they rejoin.
-[*][b]Guests use the dog like their own:[/b] the game's Commands / Pet / Feed prompt, the Teammates card and its orders menu, rename, skills, first aid, gear (collar, vest, saddlebag) and the saddlebag's storage. No extra keys.
-[*]Petting and feeding animations and dog sounds (barks, whines, happy) are synced for everyone with DogShare (the base game only plays them for one player).
-[*]Shared dogs get hungry like any dog - whoever owns one feeds it.
-[*]Fetch works: throw a tennis ball and your dog brings it back to your backpack.
-[*]You get the "<dog> brought you ..." notice for your own dog's gifts, and dog speech bubbles show for everyone.
+[*]The host gives dogs to the other players: [b]up to 3 per guest[/b].
+[*]A guest's dog [b]follows them and fights for them[/b], not the host.
+[*]Guest dogs are [b]saved in the host's world[/b] and link back to their owner when they rejoin.
+[*]The host no longer controls a dog once it's given away: it leaves the host's Teammates list and orders menu.
 [/list]
 
-[b]Everyone should subscribe:[/b] the host needs it to give dogs, and guests need it for the prompts and Teammates card.
+[h2]Guests use their dog like their own[/h2]
+Everything goes through the game's own prompts and menus. [b]No extra keys[/b] for guests.
+[list]
+[*][b]Commands / Pet / Feed[/b] prompt when you look at your dog.
+[*][b]Orders:[/b] Follow, Stay, Passive, Defensive, Aggressive, from the prompt or the Teammates card.
+[*][b]Teammates card[/b] for your dog, with its level, skills and orders menu.
+[*][b]Petting[/b] raises affection, with the game's normal cooldown.
+[*][b]Feeding[/b] with the game's food picker. Food comes out of your own backpack, and the dog says if it isn't hungry.
+[*][b]First aid[/b] heals your dog and wakes it if it's knocked out. Medicine comes out of your backpack.
+[*][b]Gear:[/b] equip and remove the collar, vest and saddlebag using items from your backpack.
+[*][b]Saddlebag storage:[/b] open it next to your backpack and move items in and out.
+[*][b]Rename[/b], [b]upgrade skills[/b] and [b]release[/b] your dog.
+[*][b]Hunger:[/b] shared dogs get hungry like any dog, and their owner feeds them. Auto-feeding can be turned on in the config.
+[*][b]Fetch:[/b] throw a tennis ball and your dog runs after it and brings it back to your backpack (or drops it at your feet if your backpack is full).
+[*][b]Gifts:[/b] when your dog brings you something, you get the game's "[i]Bear brought you a dead crow[/i]" notice and the gift lands at your feet.
+[/list]
+
+[h2]Synced for everyone[/h2]
+The base game only shows these on one PC. With DogShare everyone sees and hears them:
+[list]
+[*]Dog animations: sitting to be petted, eating and others.
+[*]The petting pose of whoever is petting, host or guest.
+[*]Dog sounds: barks, whines, soft and happy sounds.
+[*]Dog speech bubbles.
+[/list]
 
 [h2]Requires[/h2]
-[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258]ZED ZONE Code Mod Loader[/url] - run its install.cmd once, then start the game through Steam.
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258]ZED ZONE Code Mod Loader[/url]. Run its install.cmd once, then start the game through Steam.
+
+[b]Everyone should subscribe.[/b] The host needs DogShare to give dogs and to run guests' actions on the real dog. Guests need it for the prompts, Teammates card, fetch, notices and synced animations. A guest without it still gets a dog that follows and fights for them.
 
 [h2]How to use[/h2]
 [olist]
-[*]Host: rescue a dog and set it to follow you (a dog told to stay won't follow its new owner).
-[*]Stand next to your friend and press F7.
-[*]Rescue another one. You keep up to 3, each guest gets up to 3.
-[*]F8 next to a guest's dog takes it back.
+[*]Host: rescue a dog and set it to Follow (a dog on Stay won't follow its new owner).
+[*]Stand next to your friend and press [b]F7[/b]. The dog closest to you switches to the player closest to you.
+[*]Rescue more dogs. You keep up to 3 and each guest gets up to 3.
+[*]To take a dog back, stand next to it and press [b]F8[/b].
 [/olist]
+Only the host uses F7 / F8. Guests just walk up to their dog and use the normal prompt.
+
+[h2]Settings[/h2]
+BepInEx/config/girthy_mods.zedzone.dogshare.cfg (created after the first launch):
+[list]
+[*][b]GiveDogKey[/b] (F7) / [b]TakeBackDogKey[/b] (F8): the host's keys.
+[*][b]MaxDogsPerGuest[/b] (3): how many dogs each guest can be given.
+[*][b]Range[/b] (8): how close the guest or dog has to be when giving / taking back.
+[*][b]AutoFeedGuestDogs[/b] (off): keep guest dogs fed automatically instead of their owner feeding them.
+[*][b]VerboseLog[/b] (on): extra detail in the log for bug reports.
+[/list]
+
+[h2]Problems?[/h2]
+DogShare writes its own log to [b]BepInEx/DogShare.log[/b] in the game folder. It says what worked and what failed: dogs given, each guest action, items moving, fetch, gifts and errors. Send the log from both the host and the guest with your report on GitHub.
 
 [h2]Known limits[/h2]
 [list]
 [*]If a guest leaves, their dogs wait in the host's world until they come back.
+[*]The host can't open the menu of a guest's dog (it belongs to the guest).
+[*]Saddlebag changes save to the host's world about every half second while it's open. If a guest disconnects at that moment, their last move may be lost.
+[*]Game updates may break it until DogShare is updated.
 [/list]
 
-Config: BepInEx/config/girthy_mods.zedzone.dogshare.cfg (keys, max dogs per guest, range, auto-feed).
 Source and issues: https://github.com/kamikaze-skynet/ZEDZONE-DogShare
