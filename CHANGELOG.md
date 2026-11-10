@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.2
+- Fix (1.4.1 regression): setting a shared dog's hunger on the guest crashed before the dog's character data existed, so the dog never got set up (no prompt or Teammates card). Hunger is now set after the character data is in place, and new shared dogs start with placeholder character data.
+- A failure that repeats every few seconds is now logged at most every 30 s.
+
 ## 1.4.1
 - Shared dogs now get hungry like any dog and their owner feeds them. The automatic top-up is now the `AutoFeedGuestDogs` setting, off by default (replaces `KeepGuestDogsFed`).
 - Feeding a full dog says it isn't hungry and keeps your food, like the game.

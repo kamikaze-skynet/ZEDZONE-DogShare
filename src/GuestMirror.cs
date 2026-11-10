@@ -277,7 +277,7 @@ namespace DogShare
                 if (string.IsNullOrEmpty(d.Guid)) continue;
                 keep.Add(d.Guid);
                 try { Upsert(d, me); }
-                catch (Exception e) { DLog.Error("guest", "Setting up shared dog '" + d.Name + "' failed", e); }
+                catch (Exception e) { DLog.ErrorThrottled("setup|" + d.Guid, 30f, "guest", "Setting up shared dog '" + d.Name + "' failed (retrying every 3 s, logged every 30 s)", e); }
             }
             foreach (var g in new List<string>(ByGuid.Keys))
                 if (!keep.Contains(g)) Remove(ByGuid[g]);
@@ -292,6 +292,10 @@ namespace DogShare
                 m.Pet = new PetData();
                 m.Data.petData = m.Pet;
                 m.Data.npcGUID = d.Guid;
+                var placeholder = new CharacterData();             // replaced by the stand-in's own once it's found;
+                placeholder.characterId = d.Guid;                  // GOAPNPCData reads hunger etc. from it
+                placeholder.characterName = d.Name;
+                m.Data.characterData = placeholder;
                 ByGuid[d.Guid] = m;
                 ByPtr[m.Data.Pointer] = m;
                 DLog.Info("guest", $"Host says dog '{d.Name}' ({d.Handle}, net id {d.NetId}) is mine - created its pet data here");
@@ -309,11 +313,7 @@ namespace DogShare
             pd.lastPetInGameTime = d.LastPet;
             foreach (var s in d.Skills) { try { pd.SetSkillLevel(s[0], s[1]); } catch { } }
             try { pd.isUnconscious = d.Unc; } catch { }
-            if (d.Hunger >= 0f)
-            {
-                if (Math.Abs(m.Data.hunger - d.Hunger) >= 1f) DLog.Debug("guest", $"'{d.Name}' hunger {m.Data.hunger:0} -> {d.Hunger:0} (from host)");
-                m.Data.hunger = d.Hunger;
-            }
+
             ApplyGear(m);
 
             // The stand-in dog on this PC.
@@ -359,6 +359,17 @@ namespace DogShare
                 var cd = new CharacterData();
                 cd.characterId = d.Guid; cd.characterName = d.Name;
                 m.Data.characterData = cd;
+            }
+
+            // hunger lives in the character data, so set it after that's in place
+            if (d.Hunger >= 0f && m.Data.characterData != null)
+            {
+                try
+                {
+                    if (Math.Abs(m.Data.hunger - d.Hunger) >= 1f) DLog.Debug("guest", $"'{d.Name}' hunger {m.Data.hunger:0} -> {d.Hunger:0} (from host)");
+                    m.Data.hunger = d.Hunger;
+                }
+                catch (Exception e) { DLog.Throttle("hungerr|" + d.Guid, 60f, "error", $"'{d.Name}': couldn't show hunger: {e.Message}"); }
             }
 
             if (!m.OnPanel)

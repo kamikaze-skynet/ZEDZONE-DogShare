@@ -67,6 +67,15 @@ namespace DogShare
             Info(cat, msg);
         }
 
+        // Error, but at most once per `seconds` for this key (for things retried every few seconds).
+        internal static void ErrorThrottled(string key, float seconds, string cat, string msg, Exception e = null)
+        {
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            if (_next.TryGetValue("E|" + key, out var t) && now < t) return;
+            _next["E|" + key] = now + seconds;
+            Error(cat, msg, e);
+        }
+
         internal static void Once(string key, string cat, string msg)
         {
             if (_once.Add(key)) Info(cat, msg);
