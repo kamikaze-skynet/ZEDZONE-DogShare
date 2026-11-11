@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.9
+- The Teammates card's counter now also counts your dogs, for example "0/3 · Dogs 2/3". The game's own number only counts hired teammates and skips dogs. Shown on the host and on guests.
+
 ## 1.4.8
 - Fix for guests with two shared dogs close together: pressing Q (Commands), Feed or First aid opened both dogs' menus at once, and they closed each other straight away. DogShare now opens only the dog you meant. That's the one the game highlights, or the one nearest your mouse cursor, or failing that the one nearest you. Each time this happens, an `act` log line names the dogs and the one it picked.
 

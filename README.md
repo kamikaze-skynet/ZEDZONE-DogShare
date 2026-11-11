@@ -81,7 +81,7 @@ Failures are logged as `ERROR` with the reason. `Debug.VerboseLog` (default on) 
 
 - A guest's saddlebag changes are saved to the host's world about every half second while it's open. If a guest disconnects within that moment, their last move may not be saved.
 - The host can't open the game's menu on a guest's dog (the game checks the owner).
-- The Teammates card's counter (for example 0/3) counts hired teammates only, not dogs. That's the game's own rule, in single-player too.
+- The Teammates card's counter (for example 0/3) counts hired teammates only, not dogs. That's the game's own rule, in single-player too. DogShare adds a separate dog count next to it ("· Dogs 2/3").
 - If a guest leaves, their dogs wait in the host's world until they come back.
 - Game updates may break it. Check `BepInEx\LogOutput.log` for `DogShare` lines and open an issue.
 
