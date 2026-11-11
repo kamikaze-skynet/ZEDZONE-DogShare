@@ -29,6 +29,10 @@ namespace DogShare
                 int cut = baseText.IndexOf(" · ", StringComparison.Ordinal);
                 if (cut >= 0) baseText = baseText.Substring(0, cut);
                 text.text = $"{baseText} · Dogs {dogs}/{Cap()}";
+                // the counter box is sized for "0/3": without this the extra text wraps into a column over the rows
+                text.horizontalOverflow = UnityEngine.HorizontalWrapMode.Overflow;
+                text.verticalOverflow = UnityEngine.VerticalWrapMode.Overflow;
+                text.alignment = UnityEngine.TextAnchor.MiddleRight;   // grow to the left, toward the empty space after "Teammates", not over the collapse button
             }
             catch (Exception e) { DLog.ErrorThrottled("teamcount", 60f, "error", "Adding the dog count to the Teammates card failed", e); }
         }

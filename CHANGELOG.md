@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.10
+- Fix for the Teammates dog count from 1.4.9: the text wrapped into a column ("0/3", "·", "Dogs", "2/3") that stuck out above the card and over the first dog's row. It now stays on one line and grows to the left.
+
 ## 1.4.9
 - The Teammates card's counter now also counts your dogs, for example "0/3 · Dogs 2/3". The game's own number only counts hired teammates and skips dogs. Shown on the host and on guests.
 
