@@ -63,6 +63,7 @@ DogShare writes its own log to **`BepInEx\DogShare.log`** in the game folder (re
 | `guest` | On a guest's PC: shared dogs found, pet data attached, Teammates card |
 | `act` | On a guest's PC: each action sent to the host (orders, petting, skills, rename) |
 | `item` | Feeding, first aid, gear and saddlebag items moving between PCs |
+| `car` | A guest's dog getting in and out of a car with its owner |
 | `status` | A summary every 30 s (only when something changed) |
 
 Failures are logged as `ERROR` with the reason. `Debug.VerboseLog` (default on) adds the raw requests and replies; turn it off once everything works. To report a problem, send `DogShare.log` from both the host and the guest.
@@ -73,12 +74,14 @@ Failures are logged as `ERROR` with the reason. `Debug.VerboseLog` (default on) 
 - On a guest's PC the host's dog is a stand-in `PetCharacterController` without pet data. DogShare gives it a mirror `GOAPNPCData`/`PetData` naming the guest as owner (matched by `NetMonsterSync` net id), so the game's own prompts, Teammates card and orders menu appear. Every action on a mirror (`ExecutePetCommand`, `ExecuteNPCCommand`, petting's `AddAffection`, feeding, first aid, skill upgrades, rename, release, gear equip/unequip, saddlebag changes) is caught and sent to the host. Items travel as the game's own bytes (`NetItemSync.SerializeItemData`, `NetContainerSync.SerializeInventory`), base64 in chunks; the host keeps each guest's copy of the dog's gear in sync and only resends what changed.
 - Guests talk to the host with hidden lines on the game's co-op chat (`MsgChat` marked `@@DS1|`). The host answers only that guest with `NetworkManager.SendTo`, and every marked line is dropped in `NetChatSync.Append`, so nobody sees them. The host runs the game's own `ExecutePetCommand`, `TryUpgradeSkill`, `ReleasePet` etc. and only accepts requests for dogs owned by the sender's character.
 - Fetch: a guest's tennis ball lands through a drop request to the host, and the host only shows the throw as a visual, so the game never calls `PetSystem.NotifyToyThrown` for it. DogShare matches the guest's throw (`NetThrowSync.OnHostReceiveThrow`) to the ball their drop request spawns and calls `NotifyToyThrown` with the guest as thrower. When the dog delivers it (`GOAPAction_Pet_FetchToy.Deliver`), the hand-over to the guest's stand-in is turned into a message that puts the ball in the guest's real backpack.
+- Cars: a riding dog is despawned and kept as data next to its owner (`PetData.ridingWithOwner`, `GOAPNPCManager.UpdateOfflinePet`). On the host a guest's stand-in isn't moved while it's in a vehicle (`NetPlayerSync.UpdatePuppets`), so a guest's dog would stay where the drive started. DogShare keeps a guest's riding dog on the vehicle's position and lets it out next to the vehicle.
 - A dog's owner is its GOAP "leader". DogShare calls the game's own `GOAPAgent.SetLeader` with the guest's player character on the host, the same call hired teammates use, so the dog's owner id becomes the guest's character id and is saved with the world.
 
 ## Known limits
 
 - A guest's saddlebag changes are saved to the host's world about every half second while it's open. If a guest disconnects within that moment, their last move may not be saved.
 - The host can't open the game's menu on a guest's dog (the game checks the owner).
+- The Teammates card's counter (for example 0/3) counts hired teammates only, not dogs. That's the game's own rule, in single-player too.
 - If a guest leaves, their dogs wait in the host's world until they come back.
 - Game updates may break it. Check `BepInEx\LogOutput.log` for `DogShare` lines and open an issue.
 

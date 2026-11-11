@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.6
+- Fix: a guest's dog that got in a car was left behind where the car started, and only came back when its owner went back for it. On the host a guest's character stays where they got in while they drive (the game moves only the car), and the game keeps a riding dog with that spot. DogShare now keeps a guest's riding dog with the car itself and lets it out next to the car when its owner gets out. The host's own dogs were not affected.
+- New `car` log lines for a guest's dog getting in and out of a car.
+
 ## 1.4.5
 - Gift notices for shared dogs: when a guest's dog brings them something ("Bear brought you a dead crow"), the guest now gets the game's notice. The game only showed it on the host's screen; the host no longer gets it for guests' dogs. The gift itself is dropped at the guest's feet as before.
 - Dog speech bubbles (the one a dog shows when it brings something back, and others) now show on every guest's screen too.
