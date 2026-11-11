@@ -9,7 +9,7 @@ namespace DogShare
     // prompts) reached every shared dog in range, so the game opened each dog's menu in the same frame. The pet
     // menu is a toggle (PetPanel.ToggleExpanded), so the menus replaced / closed each other at once.
     //
-    // Fix (guest, shared dogs only): hold back these calls for one frame, then run the action only on the one dog
+    // Fix (guest, shared dogs only): hold back these calls for two frames, then run the action only on the one dog
     // you meant. That's the game's nearest interact object (InteractManager), or if it can't tell, the dog nearest
     // your mouse cursor, or failing that the dog nearest you.
     internal static class OneDog
@@ -36,7 +36,7 @@ namespace DogShare
         // Every frame from GuestMirror.Update.
         internal static void Tick()
         {
-            if (_pending.Count == 0 || Time.frameCount <= _frame) return;
+            if (_pending.Count == 0 || Time.frameCount < _frame + 2) return;   // wait 2 frames in case the other dogs' calls come a frame later
             var reqs = new List<Req>(_pending);
             _pending.Clear();
             var pick = Pick(reqs, out string how);

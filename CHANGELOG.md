@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.8
+- Fix for guests with two shared dogs close together: pressing Q (Commands), Feed or First aid opened both dogs' menus at once, and they closed each other straight away. DogShare now opens only the dog you meant. That's the one the game highlights, or the one nearest your mouse cursor, or failing that the one nearest you. Each time this happens, an `act` log line names the dogs and the one it picked.
+
 ## 1.4.7
 - Fix for guests with two or more shared dogs: opening one dog's menu (the Commands prompt or its Teammates card) showed the first dog instead, so orders, the saddlebag and the rest went to the wrong dog. For example, Bear's saddlebag wouldn't open because the menu was really Ruby's, and Ruby had no saddlebag. On a guest the game still applies its one-pet co-op rule and treats every pet after the first as "frozen", and the pet menu swaps a frozen pet for the first one. Shared dogs are never frozen on the guest now. The host decides how many dogs there are.
 
