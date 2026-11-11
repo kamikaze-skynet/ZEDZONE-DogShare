@@ -106,6 +106,7 @@ namespace DogShare
             }
             catch (Exception e) { DLog.Error("error", "Guest update failed", e); }
             try { AnimSync.Tick(); } catch { }
+            try { OneDog.Tick(); } catch (Exception e) { DLog.ErrorThrottled("onedog", 30f, "error", "Choosing which shared dog a key press was for failed", e); }
             try { TickInteract(); } catch (Exception e) { DLog.Throttle("interr", 30f, "error", "Range check for shared dogs failed: " + e.Message); }
             try { TickPouch(); } catch (Exception e) { DLog.Error("item", "Saddlebag sync failed - stopped syncing it", e); _pouchOpen = null; }
         }
