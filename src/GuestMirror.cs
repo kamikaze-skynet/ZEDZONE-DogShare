@@ -710,6 +710,25 @@ namespace DogShare
         }
 
         // Let the Teammates panel and pet panel list our shared dogs like our own.
+        // On a guest the game still thinks it's a one-pet session (NetSim.singlePetSession is only lifted on the host),
+        // so PetSystem.IsPetFrozen calls every pet after the first one in the list "frozen". PetPanel.Open then swaps a
+        // frozen pet for the first one: with two shared dogs, opening the second dog's menu showed the first dog's,
+        // and its saddlebag / orders went to the first dog. The host runs these dogs and already allows several,
+        // so a shared dog is never frozen here.
+        [HarmonyPatch(typeof(PetSystem), nameof(PetSystem.IsPetFrozen))]
+        [HarmonyPrefix]
+        static bool IsPetFrozen(GOAPNPCData __0, ref bool __result)
+        {
+            try
+            {
+                if (GuestMirror.Of(__0) == null) return true;
+                __result = false;
+                DLog.Once("notfrozen", "guest", "Shared dogs are never 'frozen' here (the game's one-pet rule only applies to the host's dogs)");
+                return false;
+            }
+            catch { return true; }
+        }
+
         [HarmonyPatch(typeof(PetSystem), nameof(PetSystem.GetPlayerPetDatas))]
         [HarmonyPostfix]
         static void GetPlayerPetDatas(ref Il2CppSystem.Collections.Generic.List<GOAPNPCData> __result) => AddMirrors(ref __result);

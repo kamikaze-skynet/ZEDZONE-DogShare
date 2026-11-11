@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.7
+- Fix for guests with two or more shared dogs: opening one dog's menu (the Commands prompt or its Teammates card) showed the first dog instead, so orders, the saddlebag and the rest went to the wrong dog. For example, Bear's saddlebag wouldn't open because the menu was really Ruby's, and Ruby had no saddlebag. On a guest the game still applies its one-pet co-op rule and treats every pet after the first as "frozen", and the pet menu swaps a frozen pet for the first one. Shared dogs are never frozen on the guest now. The host decides how many dogs there are.
+
 ## 1.4.6
 - Fix: a guest's dog that got in a car was left behind where the car started, and only came back when its owner went back for it. On the host a guest's character stays where they got in while they drive (the game moves only the car), and the game keeps a riding dog with that spot. DogShare now keeps a guest's riding dog with the car itself and lets it out next to the car when its owner gets out. The host's own dogs were not affected.
 - New `car` log lines for a guest's dog getting in and out of a car.
