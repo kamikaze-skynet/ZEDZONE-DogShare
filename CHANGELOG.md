@@ -1,7 +1,12 @@
 # Changelog
 
-## 1.5.0 (test build)
-- Kennel prototype (host or single player, your own dogs): F9 puts your nearest dog in the kennel, saving its whole record (name, breed, affection, skills, gear, saddlebag) with the game's own save format to `BepInEx\config\DogShare.kennel.txt`. F10 brings back the dog stored longest ago, next to you. Every step is logged under `[kennel]` in DogShare.log.
+## 1.5.0
+- New: kennel. Put a dog away and bring the same dog back later, with its name, breed, affection, skills, gear and saddlebag. Stored dogs leave the world and the team, don't count toward the 3-dog limit, and don't get hungry.
+  - **F9**: store your dog closest to you (host, guests and single player).
+  - **F10**: open the kennel list, then click **Bring back**. The dog appears next to you. You still need a free slot (3 dogs, or the host's MaxDogsPerGuest for guests).
+  - The host keeps everyone's stored dogs, one file per world in `BepInEx\config\DogShare.kennel\`. Each player only sees their own. A guest's dogs wait for them while they're offline.
+  - Dogs are saved in the game's own save format, and the file is written and checked before the dog is removed. A kennel entry is only deleted once the dog is back. Every step is logged under `[kennel]` in DogShare.log.
+  - Guests need DogShare 1.5.0 and a host with 1.5.0.
 
 ## 1.4.12
 - Fix: a released dog came back. Releasing a dog leaves it in its owner's team list, so the next time the team changed (hiring someone, or taking a dog back with F8) it rejoined and followed again. The host now remembers released dogs (in `BepInEx\config\DogShare.released.txt`), takes them off every team list, stops them rejoining, and leaves them out of give / take back. Adopting the dog again makes it a normal dog again.
