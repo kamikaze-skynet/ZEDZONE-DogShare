@@ -135,6 +135,12 @@ namespace DogShare
         [HarmonyPostfix]
         static void Postfix(GOAPNPCData __0)
         {
+            long t0 = Hitch.Start();
+            try { Run(__0); } finally { Hitch.Stop("card fix", t0); }
+        }
+
+        static void Run(GOAPNPCData __0)
+        {
             try
             {
                 if (__0 == null || !ZedZone.Net.NetworkManager.isOnline || ZedZone.Net.NetworkManager.isClient) return;

@@ -23,6 +23,7 @@ namespace DogShare
             public IntPtr AttachedTo;
             public PetCharacterController Pc;
             public bool OnPanel;
+            public string LastSig;   // what the cards last showed; refresh them only when this changes
             public readonly Dictionary<string, string> GearHash = new Dictionary<string, string>();
         }
 
@@ -78,6 +79,12 @@ namespace DogShare
         }
 
         void Update()
+        {
+            long t0 = Hitch.Start();
+            try { GuestUpdate(); } finally { Hitch.Stop("guest update", t0); }
+        }
+
+        void GuestUpdate()
         {
             try
             {
@@ -391,7 +398,25 @@ namespace DogShare
                 }
                 catch (Exception e) { DLog.Error("guest", $"'{d.Name}': adding to the Teammates panel failed", e); m.OnPanel = true; }
             }
-            try { PetPanel.NotifyPetChanged(m.Data); } catch { }
+            // The host resends the list every 3 s. Refreshing the pet and Teammates cards each time rebuilt their UI
+            // for nothing (a hitch with a full Teammates card), so only refresh when something they show changed.
+            var sig = Sig(d, pc);
+            if (sig != m.LastSig)
+            {
+                m.LastSig = sig;
+                try { PetPanel.NotifyPetChanged(m.Data); } catch { }
+            }
+        }
+
+        static string Sig(Incoming d, PetCharacterController pc)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append(d.Name).Append('|').Append(d.NetId).Append('|').Append(d.Breed).Append('|').Append(d.Level).Append('|')
+              .Append(d.Xp.ToString("0.##", CultureInfo.InvariantCulture)).Append('|').Append(d.Points).Append('|').Append(d.Spent).Append('|')
+              .Append(d.Stay).Append('|').Append(d.Combat).Append('|').Append(d.LastPet.ToString("0.#####", CultureInfo.InvariantCulture)).Append('|')
+              .Append(d.Unc).Append('|').Append((int)d.Hunger).Append('|').Append(pc == null ? IntPtr.Zero : pc.Pointer);
+            foreach (var k in d.Skills) sb.Append('|').Append(k[0]).Append(':').Append(k[1]);
+            return sb.ToString();
         }
 
         static void ApplyGear(Mirror m)

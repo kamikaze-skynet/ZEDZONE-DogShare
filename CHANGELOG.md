@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.12
+- Freeze detector: when a frame takes longer than a quarter of a second, DogShare writes a `perf` line to its log with how long the frame took and how much of that time was DogShare's own work, split by part. Use it to tell whether a freeze comes from DogShare or from something else.
+- Guests: the shared dogs' pet and Teammates cards were refreshed every 3 seconds when the host's update arrived, even when nothing had changed. They now refresh only when something they show changes.
+
 ## 1.4.11
 - Performance fix for big crews of hired AI. Every NPC re-checks who its leader is every update, and each check the game couldn't answer itself went through DogShare, which then searched every character in the world for a matching guest. With lots of hired teammates around that ran hundreds of full searches a second and cost frame rate, on the host and (from a per-frame check) on guests too. DogShare now looks the world up at most twice a second and answers from that list, so the cost no longer grows with the number of NPCs.
 

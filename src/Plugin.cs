@@ -22,7 +22,7 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.4.11";
+        public const string Version = "1.4.12";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
@@ -107,6 +107,7 @@ namespace DogShare
         static void Postfix(string __0, ref BasicCharacterController __result)
         {
             if (__result != null || string.IsNullOrEmpty(__0)) return;
+            long t0 = Hitch.Start();
             try
             {
                 if (!NetworkManager.isOnline || NetworkManager.isClient) return;
@@ -118,6 +119,7 @@ namespace DogShare
                 }
             }
             catch { }
+            finally { Hitch.Stop("leader lookups", t0); }
         }
     }
 
@@ -132,6 +134,13 @@ namespace DogShare
         float _nextStatus;
 
         void Update()
+        {
+            Hitch.Roll();
+            long t0 = Hitch.Start();
+            try { HostUpdate(); } finally { Hitch.Stop("host update", t0); }
+        }
+
+        void HostUpdate()
         {
             try
             {
