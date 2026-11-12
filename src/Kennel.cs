@@ -158,7 +158,7 @@ namespace DogShare
             _entries.RemoveAll(x => x.Guid == data.npcGUID);
 
             DLog.Info("kennel", $"Storing '{name}' ({DLog.S(data.npcGUID)}) for {DogShareBehaviour.GuestName(owner)}: {Describe(data)}");
-            try { pd.holdingItem = null; } catch { }
+            DropHeld(pd, owner, name);
 
             // 1. save and check it reads back
             var bytes = ToBytes(data);
@@ -176,7 +176,13 @@ namespace DogShare
                 Guid = data.npcGUID, Owner = DogShareBehaviour.IdOf(owner), OwnerName = DogShareBehaviour.GuestName(owner), Name = name,
                 Breed = pd.breedId, Level = pd.affectionLevel, Stored = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture), Bytes = bytes
             });
-            Save();
+            try { Save(); }
+            catch (Exception ex)
+            {
+                _entries.RemoveAll(x => x.Guid == data.npcGUID);
+                DLog.Error("kennel", $"  couldn't write the kennel file - '{name}' stays in the world", ex);
+                return $"Couldn't save the kennel file - {name} stays here.";
+            }
 
             // 3. take it out of the world and off every team
             var host = DogShareBehaviour.HostPlayer();
@@ -190,6 +196,21 @@ namespace DogShare
             bool gone = mgr.GetNPCData(data.npcGUID) == null;
             DLog.Info("kennel", $"  out of the game's NPC list: {(gone ? "yes" : "NO")}; kennel now has {_entries.Count} dog(s)");
             return $"{name} is in the kennel. Press {Plugin.KennelRestoreKey.Value} to bring a dog back.";
+        }
+
+        // A dog carrying something (a ball, a gift) drops it at its owner's feet first, so the item isn't lost.
+        static void DropHeld(PetData pd, HumanCharacterController owner, string name)
+        {
+            ItemData held = null;
+            try { held = pd.holdingItem; } catch { }
+            if (held == null) return;
+            try
+            {
+                var go = GameController.instance.DropItemByPlayer(held, DogShareBehaviour.Pos(owner), 0f, 0f, 0, -128);
+                DLog.Info("kennel", $"  '{name}' was carrying item {held.itemId} - dropped it at {DogShareBehaviour.GuestName(owner)}'s feet ({(go != null ? "ok" : "no object back")})");
+            }
+            catch (Exception e) { DLog.Error("kennel", $"  dropping what '{name}' was carrying failed", e); }
+            try { pd.holdingItem = null; } catch { }
         }
 
         internal static string Restore(string guid, HumanCharacterController owner, bool ownerIsGuest)
@@ -298,6 +319,23 @@ namespace DogShare
         static readonly List<Entry> _incoming = new List<Entry>();
         static int _incomingSeq = -1;
         static bool _remoteLoaded;
+        static float _waitSince = -1f;   // when the last kennel request went to the host (cleared by its KX)
+        static bool _noAnswer;           // the host never answered: it's on a DogShare without the kennel
+
+        static void Ask(params object[] parts)
+        {
+            _waitSince = Time.unscaledTime; _noAnswer = false;
+            GuestMirror.Send(parts);
+        }
+
+        static void CheckWait()
+        {
+            if (_waitSince < 0f || Time.unscaledTime - _waitSince < 6f) return;
+            _waitSince = -1f; _noAnswer = true; _remoteLoaded = true; _remote.Clear();
+            _status = "";
+            DLog.Warn("kennel", "The host didn't answer a kennel request - the host needs DogShare 1.5.0 or newer");
+            if (!_open) GuestMirror.Note("The host didn't answer. The kennel needs DogShare 1.5.0 or newer on the host.");
+        }
 
         internal static bool GuestOnMessage(string[] p)
         {
@@ -313,7 +351,7 @@ namespace DogShare
                 int seq = I(p[2]);
                 if (seq != _incomingSeq) _incoming.Clear();
                 _remote.Clear(); _remote.AddRange(_incoming); _incoming.Clear(); _incomingSeq = -1;
-                _remoteLoaded = true;
+                _remoteLoaded = true; _waitSince = -1f; _noAnswer = false;
                 DLog.Info("kennel", $"Host says my kennel has {_remote.Count} dog(s): [{string.Join(", ", _remote.ConvertAll(x => x.Name))}]");
                 return true;
             }
@@ -328,13 +366,19 @@ namespace DogShare
         internal static void Tick()
         {
             bool guest = GuestMirror.IsGuest();
-            if (guest && !GuestMirror.HostHasMod) return;
+            if (guest && !GuestMirror.HostHasMod)
+            {
+                if (DogShareBehaviour.Pressed(Plugin.KennelStoreKey.Value) || DogShareBehaviour.Pressed(Plugin.KennelRestoreKey.Value))
+                    GuestMirror.Note("The kennel needs DogShare on the host too.");
+                return;
+            }
+            if (guest) CheckWait();
             if (DogShareBehaviour.Pressed(Plugin.KennelStoreKey.Value)) Run("store", () => { if (guest) GuestStore(); else HostStore(); });
             else if (DogShareBehaviour.Pressed(Plugin.KennelRestoreKey.Value))
             {
                 _open = !_open;
                 _status = "";
-                if (_open && guest) { _remoteLoaded = false; GuestMirror.Send("KL"); }
+                if (_open && guest) { _remoteLoaded = false; Ask("KL"); }
                 if (_open && !guest) Ensure();
             }
             if (!_open) return;
@@ -360,7 +404,7 @@ namespace DogShare
             if (guest)
             {
                 DLog.Info("kennel", $"Asking the host to bring back '{e.Name}'");
-                _remoteLoaded = false; GuestMirror.Send("KR", guid);
+                _remoteLoaded = false; Ask("KR", guid);
                 _status = $"Asking the host for {e.Name}...";
             }
             else Run("bring back", () => { var me = DogShareBehaviour.HostPlayer(); if (me != null) { _status = Restore(guid, me, false); DogShareBehaviour.Say(_status); } });
@@ -394,8 +438,19 @@ namespace DogShare
                 if (d <= bestD) { bestD = d; best = m; }
             }
             if (best == null) { GuestMirror.Note("None of your dogs are close by."); return; }
+            if (GuestMirror.PouchOpenFor(best)) { GuestMirror.Note("Close the saddlebag first, then store the dog."); return; }
             DLog.Info("kennel", $"Asking the host to store '{best.Data.characterData?.characterName}' ({best.Handle})");
-            GuestMirror.Send("KS", best.Handle);
+            Ask("KS", best.Handle);
+        }
+
+        static readonly Dictionary<int, string> _breeds = new Dictionary<int, string>();
+        static string BreedName(int id)
+        {
+            if (_breeds.TryGetValue(id, out var n)) return n;
+            try { n = PetSystem.GetBreedName(id); } catch { }
+            if (string.IsNullOrEmpty(n)) n = "breed " + id;
+            _breeds[id] = n;
+            return n;
         }
 
         static float Reach2() { float r = Plugin.Range.Value * 2f; return r * r; }
@@ -416,19 +471,22 @@ namespace DogShare
                 bool guest = GuestMirror.IsGuest();
                 var list = CurrentList(guest);
                 const float w = 380f, row = 26f;
-                int rows = Math.Max(1, list.Count);
-                float h = 64f + rows * row + (_status.Length > 0 ? 24f : 0f);
+                const int maxRows = 8;
+                int rows = Math.Max(1, Math.Min(list.Count, maxRows));
+                float h = 64f + rows * row + (_status.Length > 0 ? 24f : 0f) + (guest && _noAnswer ? row : 0f);
                 var r = new Rect((Screen.width - w) / 2f, Screen.height * 0.2f, w, h);
-                GUI.Box(r, "Kennel");
+                GUI.Box(r, list.Count > maxRows ? $"Kennel ({_sel + 1} / {list.Count})" : "Kennel");
                 float y = r.y + 26f;
-                if (guest && !_remoteLoaded) GUI.Label(new Rect(r.x + 12f, y, w - 24f, row), "Asking the host...");
-                else if (list.Count == 0) GUI.Label(new Rect(r.x + 12f, y, w - 24f, row), $"No dogs in the kennel. Press {Plugin.KennelStoreKey.Value} next to a dog to store it.");
-                for (int i = 0; i < list.Count; i++)
+                if (guest && _noAnswer) GUI.Label(new Rect(r.x + 12f, y, w - 24f, row * 2f), "The host didn't answer. The kennel needs DogShare 1.5.0 or newer on the host.");
+                else if (guest && !_remoteLoaded) GUI.Label(new Rect(r.x + 12f, y, w - 24f, row), "Asking the host...");
+                else if (list.Count == 0 && !_noAnswer) GUI.Label(new Rect(r.x + 12f, y, w - 24f, row), $"No dogs in the kennel. Press {Plugin.KennelStoreKey.Value} next to a dog to store it.");
+                int first = Math.Max(0, Math.Min(_sel - maxRows + 1, list.Count - maxRows));
+                for (int i = first; i < Math.Min(list.Count, first + maxRows); i++)
                 {
                     var e = list[i];
                     var line = new Rect(r.x + 8f, y, w - 16f, row - 2f);
                     if (i == _sel) GUI.Box(line, "");
-                    GUI.Label(new Rect(line.x + 6f, line.y + 3f, line.width - 12f, row), $"{(i == _sel ? "> " : "   ")}{e.Name}  (level {e.Level}, stored {e.Stored})");
+                    GUI.Label(new Rect(line.x + 6f, line.y + 3f, line.width - 12f, row), $"{(i == _sel ? "> " : "   ")}{e.Name}  ({BreedName(e.Breed)}, level {e.Level}, stored {e.Stored})");
                     y += row;
                 }
                 if (_status.Length > 0) GUI.Label(new Rect(r.x + 12f, r.yMax - 46f, w - 24f, 22f), _status);

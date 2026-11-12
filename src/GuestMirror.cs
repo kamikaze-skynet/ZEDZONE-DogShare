@@ -39,6 +39,7 @@ namespace DogShare
         static readonly Dictionary<string, Mirror> ByGuid = new Dictionary<string, Mirror>();
         internal static int Count => ByGuid.Count;
         internal static IEnumerable<Mirror> Mirrors() => ByGuid.Values;
+        internal static bool PouchOpenFor(Mirror m) => m != null && _pouchOpen == m;
 
         class Incoming { public string Handle, Guid, Name; public int NetId, Breed, Level, Points, Spent, Combat; public float Xp, LastPet, Hunger = -1f; public bool Stay, Unc; public List<int[]> Skills = new List<int[]>(); }
         static readonly Dictionary<string, Incoming> _incoming = new Dictionary<string, Incoming>();
