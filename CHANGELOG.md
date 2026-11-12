@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.11
+- Performance fix for big crews of hired AI. Every NPC re-checks who its leader is every update, and each check the game couldn't answer itself went through DogShare, which then searched every character in the world for a matching guest. With lots of hired teammates around that ran hundreds of full searches a second and cost frame rate, on the host and (from a per-frame check) on guests too. DogShare now looks the world up at most twice a second and answers from that list, so the cost no longer grows with the number of NPCs.
+
 ## 1.4.10
 - Fix for the Teammates dog count from 1.4.9: the text wrapped into a column ("0/3", "·", "Dogs", "2/3") that stuck out above the card and over the first dog's row. It now stays on one line and grows to the left.
 
