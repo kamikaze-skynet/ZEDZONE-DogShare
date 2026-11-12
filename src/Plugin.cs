@@ -22,10 +22,10 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.4.12";
+        public const string Version = "1.5.0";
 
         internal static ManualLogSource L;
-        internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
+        internal static ConfigEntry<KeyCode> GiveKey, TakeKey, KennelStoreKey, KennelRestoreKey;
         internal static ConfigEntry<int> MaxPerGuest;
         internal static ConfigEntry<float> Range;
         internal static ConfigEntry<bool> KeepFed;
@@ -38,6 +38,8 @@ namespace DogShare
             L = Log;
             GiveKey = Config.Bind("Keys", "GiveDogKey", KeyCode.F7, "Host: give the dog nearest to you to the guest nearest to you.");
             TakeKey = Config.Bind("Keys", "TakeBackDogKey", KeyCode.F8, "Host: take back the guest-owned dog nearest to you.");
+            KennelStoreKey = Config.Bind("Keys", "KennelStoreKey", KeyCode.F9, "Host / single player (test): put your nearest dog in the kennel.");
+            KennelRestoreKey = Config.Bind("Keys", "KennelBringBackKey", KeyCode.F10, "Host / single player (test): bring a dog back from the kennel.");
             MaxPerGuest = Config.Bind("Rules", "MaxDogsPerGuest", 3, "How many dogs each guest can be given.");
             Range = Config.Bind("Rules", "Range", 8f, "How close (in game units) the guest / dog must be to the host.");
             KeepFed = Config.Bind("Rules", "AutoFeedGuestDogs", false, "Keep guest-owned dogs' hunger full automatically. Off (default): guest dogs get hungry like your own, and their owner feeds them.");
@@ -146,6 +148,7 @@ namespace DogShare
             {
                 string role = !NetworkManager.isOnline ? "offline / single-player" : NetworkManager.isClient ? "guest" : "host";
                 DLog.Change("role", "role", "Now " + role);
+                if (!NetworkManager.isOnline || !NetworkManager.isClient) Kennel.Tick();   // host or single player
                 if (!NetworkManager.isOnline || NetworkManager.isClient) return;   // host only
                 Fetch.HostTick();
                 Ride.HostTick();

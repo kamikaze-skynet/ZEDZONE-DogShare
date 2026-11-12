@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.0 (test build)
+- Kennel prototype (host or single player, your own dogs): F9 puts your nearest dog in the kennel, saving its whole record (name, breed, affection, skills, gear, saddlebag) with the game's own save format to `BepInEx\config\DogShare.kennel.txt`. F10 brings back the dog stored longest ago, next to you. Every step is logged under `[kennel]` in DogShare.log.
+
 ## 1.4.12
 - Fix: a released dog came back. Releasing a dog leaves it in its owner's team list, so the next time the team changed (hiring someone, or taking a dog back with F8) it rejoined and followed again. The host now remembers released dogs (in `BepInEx\config\DogShare.released.txt`), takes them off every team list, stops them rejoining, and leaves them out of give / take back. Adopting the dog again makes it a normal dog again.
 - Freeze detector: when a frame takes longer than a quarter of a second, DogShare writes a `perf` line to its log with how long the frame took and how much of that time was DogShare's own work, split by part. Use it to tell whether a freeze comes from DogShare or from something else.
