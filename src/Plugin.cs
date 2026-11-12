@@ -51,7 +51,7 @@ namespace DogShare
 
             var harmony = new Harmony(Guid);
             int ok = 0, failed = 0;
-            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch) })
+            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch), typeof(ReleasedPatches) })
             {
                 try
                 {
@@ -152,7 +152,7 @@ namespace DogShare
                 if (Time.unscaledTime >= _nextStatus) { _nextStatus = Time.unscaledTime + 30f; Status(); }
                 if (Pressed(Plugin.GiveKey.Value)) Give();
                 else if (Pressed(Plugin.TakeKey.Value)) TakeBack();
-                if (Time.unscaledTime >= _nextTick) { _nextTick = Time.unscaledTime + 2f; Maintain(); }
+                if (Time.unscaledTime >= _nextTick) { _nextTick = Time.unscaledTime + 2f; Maintain(); try { Released.Sweep(); } catch (Exception e) { DLog.ErrorThrottled("relsweep", 60f, "host", "Released-dog check failed", e); } }
             }
             catch (Exception e) { DLog.Error("error", "Host update failed", e); _nextTick = Time.unscaledTime + 10f; }
         }
@@ -288,7 +288,7 @@ namespace DogShare
             {
                 if (p == null) continue;
                 var d = p.npcData;
-                if (d == null || PetSystem.IsStrayPet(d)) continue;
+                if (d == null || PetSystem.IsStrayPet(d) || Released.Is(d)) continue;
                 list.Add(p);
             }
             return list;
