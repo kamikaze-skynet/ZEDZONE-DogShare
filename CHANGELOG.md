@@ -3,7 +3,7 @@
 ## 1.5.0
 - New: kennel. Put a dog away and bring the same dog back later, with its name, breed, affection, skills, gear and saddlebag. Stored dogs leave the world and the team, don't count toward the 3-dog limit, and don't get hungry.
   - **F9**: store your dog closest to you (host, guests and single player).
-  - **F10**: open the kennel list, then click **Bring back**. The dog appears next to you. You still need a free slot (3 dogs, or the host's MaxDogsPerGuest for guests).
+  - **F10**: open the kennel list, pick a dog with the **Up / Down** arrows and press **Space** (or Enter) to bring it back next to you. No mouse clicks, so no shots fired. You still need a free slot (3 dogs, or the host's MaxDogsPerGuest for guests).
   - The host keeps everyone's stored dogs, one file per world in `BepInEx\config\DogShare.kennel\`. Each player only sees their own. A guest's dogs wait for them while they're offline.
   - Dogs are saved in the game's own save format, and the file is written and checked before the dog is removed. A kennel entry is only deleted once the dog is back. Every step is logged under `[kennel]` in DogShare.log.
   - Guests need DogShare 1.5.0 and a host with 1.5.0.

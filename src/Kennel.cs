@@ -323,6 +323,7 @@ namespace DogShare
         // ---------------------------------------------------------------- input (every PC)
         static bool _open;
         static string _status = "";
+        static int _sel;   // selected row in the list (arrow keys), brought back with Space / Enter
 
         internal static void Tick()
         {
@@ -336,7 +337,33 @@ namespace DogShare
                 if (_open && guest) { _remoteLoaded = false; GuestMirror.Send("KL"); }
                 if (_open && !guest) Ensure();
             }
-            if (_open && DogShareBehaviour.Pressed(KeyCode.Escape)) _open = false;
+            if (!_open) return;
+            if (DogShareBehaviour.Pressed(KeyCode.Escape)) { _open = false; return; }
+            var list = CurrentList(guest);
+            if (list.Count == 0) { _sel = 0; return; }
+            if (DogShareBehaviour.Pressed(KeyCode.UpArrow)) _sel = (_sel - 1 + list.Count) % list.Count;
+            else if (DogShareBehaviour.Pressed(KeyCode.DownArrow)) _sel = (_sel + 1) % list.Count;
+            _sel = Math.Max(0, Math.Min(_sel, list.Count - 1));
+            if (DogShareBehaviour.Pressed(KeyCode.Space) || DogShareBehaviour.Pressed(KeyCode.Return)) BringBack(list[_sel], guest);
+        }
+
+        static List<Entry> CurrentList(bool guest)
+        {
+            if (guest) return _remoteLoaded ? _remote : new List<Entry>();
+            var me = DogShareBehaviour.HostPlayer();
+            return me == null ? new List<Entry>() : ListFor(DogShareBehaviour.IdOf(me));
+        }
+
+        static void BringBack(Entry e, bool guest)
+        {
+            var guid = e.Guid;
+            if (guest)
+            {
+                DLog.Info("kennel", $"Asking the host to bring back '{e.Name}'");
+                _remoteLoaded = false; GuestMirror.Send("KR", guid);
+                _status = $"Asking the host for {e.Name}...";
+            }
+            else Run("bring back", () => { var me = DogShareBehaviour.HostPlayer(); if (me != null) { _status = Restore(guid, me, false); DogShareBehaviour.Say(_status); } });
         }
 
         static void Run(string what, Action a)
@@ -387,36 +414,25 @@ namespace DogShare
             try
             {
                 bool guest = GuestMirror.IsGuest();
-                List<Entry> list;
-                if (guest) list = _remote;
-                else { var me = DogShareBehaviour.HostPlayer(); list = me == null ? new List<Entry>() : ListFor(DogShareBehaviour.IdOf(me)); }
-
-                const float w = 360f, row = 30f;
+                var list = CurrentList(guest);
+                const float w = 380f, row = 26f;
                 int rows = Math.Max(1, list.Count);
-                float h = 70f + rows * (row + 4f) + (_status.Length > 0 ? 26f : 0f);
+                float h = 64f + rows * row + (_status.Length > 0 ? 24f : 0f);
                 var r = new Rect((Screen.width - w) / 2f, Screen.height * 0.2f, w, h);
                 GUI.Box(r, "Kennel");
-                float y = r.y + 28f;
+                float y = r.y + 26f;
                 if (guest && !_remoteLoaded) GUI.Label(new Rect(r.x + 12f, y, w - 24f, row), "Asking the host...");
                 else if (list.Count == 0) GUI.Label(new Rect(r.x + 12f, y, w - 24f, row), $"No dogs in the kennel. Press {Plugin.KennelStoreKey.Value} next to a dog to store it.");
-                foreach (var e in list.ToArray())
+                for (int i = 0; i < list.Count; i++)
                 {
-                    GUI.Label(new Rect(r.x + 12f, y + 5f, w - 140f, row), $"{e.Name}  (level {e.Level}, stored {e.Stored})");
-                    if (GUI.Button(new Rect(r.x + w - 122f, y, 110f, row - 2f), "Bring back"))
-                    {
-                        var guid = e.Guid;
-                        if (guest)
-                        {
-                            DLog.Info("kennel", $"Asking the host to bring back '{e.Name}'");
-                            _remoteLoaded = false; GuestMirror.Send("KR", guid);
-                            _status = $"Asking the host for {e.Name}...";
-                        }
-                        else Run("bring back", () => { var me = DogShareBehaviour.HostPlayer(); if (me != null) { _status = Restore(guid, me, false); DogShareBehaviour.Say(_status); } });
-                    }
-                    y += row + 4f;
+                    var e = list[i];
+                    var line = new Rect(r.x + 8f, y, w - 16f, row - 2f);
+                    if (i == _sel) GUI.Box(line, "");
+                    GUI.Label(new Rect(line.x + 6f, line.y + 3f, line.width - 12f, row), $"{(i == _sel ? "> " : "   ")}{e.Name}  (level {e.Level}, stored {e.Stored})");
+                    y += row;
                 }
-                if (_status.Length > 0) GUI.Label(new Rect(r.x + 12f, r.yMax - 52f, w - 24f, 24f), _status);
-                if (GUI.Button(new Rect(r.x + w / 2f - 50f, r.yMax - 28f, 100f, 22f), "Close")) _open = false;
+                if (_status.Length > 0) GUI.Label(new Rect(r.x + 12f, r.yMax - 46f, w - 24f, 22f), _status);
+                GUI.Label(new Rect(r.x + 12f, r.yMax - 24f, w - 24f, 22f), $"Up / Down: choose    Space: bring back    {Plugin.KennelRestoreKey.Value} / Esc: close");
             }
             catch (Exception e) { DLog.ErrorThrottled("kennelgui", 30f, "kennel", "Drawing the kennel list failed", e); _open = false; }
         }

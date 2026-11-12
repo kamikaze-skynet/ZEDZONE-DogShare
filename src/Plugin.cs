@@ -183,6 +183,9 @@ namespace DogShare
                     KeyCode.F7 => UnityEngine.InputSystem.Key.F7, KeyCode.F8 => UnityEngine.InputSystem.Key.F8,
                     KeyCode.F9 => UnityEngine.InputSystem.Key.F9, KeyCode.F10 => UnityEngine.InputSystem.Key.F10,
                     KeyCode.F11 => UnityEngine.InputSystem.Key.F11, KeyCode.F12 => UnityEngine.InputSystem.Key.F12,
+                    KeyCode.UpArrow => UnityEngine.InputSystem.Key.UpArrow, KeyCode.DownArrow => UnityEngine.InputSystem.Key.DownArrow,
+                    KeyCode.Space => UnityEngine.InputSystem.Key.Space, KeyCode.Return => UnityEngine.InputSystem.Key.Enter,
+                    KeyCode.Escape => UnityEngine.InputSystem.Key.Escape,
                     _ => UnityEngine.InputSystem.Key.None
                 };
                 return k != UnityEngine.InputSystem.Key.None && kb[k].wasPressedThisFrame;
