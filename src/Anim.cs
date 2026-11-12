@@ -111,7 +111,7 @@ namespace DogShare
                 string who = p[2];
                 bool on = p[3] == "1";
                 if (who == Proto.Short(DogShareBehaviour.IdOf(DogShareBehaviour.HostPlayer()))) return;   // that's me
-                foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
+                foreach (var h in DogShareBehaviour.Humans())
                 {
                     if (h == null || Proto.Short(DogShareBehaviour.IdOf(h)) != who) continue;
                     ApplyPose(h, on);

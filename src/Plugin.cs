@@ -22,7 +22,7 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.4.10";
+        public const string Version = "1.4.11";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
@@ -177,24 +177,64 @@ namespace DogShare
         }
 
         // ---------------------------------------------------------------- world queries
-        internal static HumanCharacterController HostPlayer()
+        // These run from hot paths: GameController.GetCharacterByGUID (every NPC's AI update re-resolves its leader,
+        // and every lookup that misses lands in GuidPatch), PetPanel.NotifyPetChanged and the guest's per-frame update.
+        // FindObjectsOfType<HumanCharacterController> walks every human in the scene (hired AI included), so with a
+        // big crew calling it per lookup cost frames. Scan at most every RescanEvery seconds and answer from the cache.
+        const float RescanEvery = 0.5f;
+        static float _humansAt = -1f;
+        static int _guestsFrame = -1;
+        static readonly List<HumanCharacterController> _humans = new List<HumanCharacterController>();
+        static readonly List<HumanCharacterController> _guests = new List<HumanCharacterController>();
+        static readonly Dictionary<string, HumanCharacterController> _guestById = new Dictionary<string, HumanCharacterController>();
+        static HumanCharacterController _host;
+        static int _hostFrame = -1;
+
+        // Every HumanCharacterController in the scene, rescanned at most every RescanEvery seconds. May hold destroyed ones: null-check.
+        internal static List<HumanCharacterController> Humans()
         {
-            HashSet<IntPtr> remote = null;
+            float now = Time.unscaledTime;
+            if (_humansAt >= 0f && now - _humansAt < RescanEvery && now >= _humansAt) return _humans;
+            _humansAt = now;
+            _humans.Clear();
             foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
-            {
-                if (h == null || !h.isPlayer || h.isNetPuppet) continue;
-                if (remote == null) { remote = new HashSet<IntPtr>(); foreach (var g in Guests()) remote.Add(g.Pointer); }
-                if (!remote.Contains(h.Pointer)) return h;
-            }
-            return null;
+                if (h != null) _humans.Add(h);
+            return _humans;
         }
 
+        internal static HumanCharacterController HostPlayer()
+        {
+            int f = Time.frameCount;
+            if (_hostFrame == f) return _host;
+            if (_host != null && _host.isPlayer && !_host.isNetPuppet && !GuestSet().Contains(_host.Pointer)) { _hostFrame = f; return _host; }
+            _host = null;
+            var remote = GuestSet();
+            foreach (var h in Humans())
+            {
+                if (h == null || !h.isPlayer || h.isNetPuppet) continue;
+                if (!remote.Contains(h.Pointer)) { _host = h; break; }
+            }
+            _hostFrame = f;
+            return _host;
+        }
+
+        static readonly HashSet<IntPtr> _guestPtrs = new HashSet<IntPtr>();
+        static HashSet<IntPtr> GuestSet() { RefreshGuests(); return _guestPtrs; }
+
         // Remote players' characters, from the game's own remote-player table (NetPlayerSync),
-        // plus any stand-in characters flagged as net puppets.
+        // plus any stand-in characters flagged as net puppets. Returns a copy (callers may keep it).
         internal static List<HumanCharacterController> Guests()
         {
-            var list = new List<HumanCharacterController>();
-            var seen = new HashSet<IntPtr>();
+            RefreshGuests();
+            return new List<HumanCharacterController>(_guests);
+        }
+
+        static void RefreshGuests()
+        {
+            int f = Time.frameCount;
+            if (_guestsFrame == f) return;
+            _guestsFrame = f;
+            _guests.Clear(); _guestById.Clear(); _guestPtrs.Clear();
             try
             {
                 var sync = NetPlayerSync.instance;
@@ -206,24 +246,30 @@ namespace DogShare
                     {
                         HumanCharacterController c = null;
                         if (!sync.TryGetRemoteController(ids[i], out c) || c == null) continue;
-                        if (c.characterData == null || string.IsNullOrEmpty(c.characterData.characterId)) continue;
-                        if (seen.Add(c.Pointer)) list.Add(c);
+                        AddGuest(c);
                     }
                 }
             }
             catch (Exception e) { if (!_warnedSync) { _warnedSync = true; DLog.Error("error", "Remote player lookup (NetPlayerSync) failed - guests may not be found", e); } }
-            foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
-                if (h != null && h.isNetPuppet && h.characterData != null && !string.IsNullOrEmpty(h.characterData.characterId) && seen.Add(h.Pointer))
-                    list.Add(h);
-            return list;
+            foreach (var h in Humans())
+                if (h != null && h.isNetPuppet) AddGuest(h);
+        }
+
+        static void AddGuest(HumanCharacterController c)
+        {
+            var id = c.characterData?.characterId;
+            if (string.IsNullOrEmpty(id) || !_guestPtrs.Add(c.Pointer)) return;
+            _guests.Add(c);
+            if (!_guestById.ContainsKey(id)) _guestById[id] = c;
         }
         static bool _warnedSync;
 
         internal static HumanCharacterController GuestById(string characterId)
         {
             if (string.IsNullOrEmpty(characterId)) return null;
-            foreach (var g in Guests()) if (IdOf(g) == characterId) return g;
-            return null;
+            RefreshGuests();
+            if (_guestById.Count == 0) return null;
+            return _guestById.TryGetValue(characterId, out var g) && g != null ? g : null;
         }
 
         internal static List<GOAPAgent_Pet> Dogs()
@@ -275,7 +321,7 @@ namespace DogShare
             try
             {
                 int puppets = 0, withData = 0, players = 0;
-                foreach (var h in UnityEngine.Object.FindObjectsOfType<HumanCharacterController>())
+                foreach (var h in Humans())
                 {
                     if (h == null) continue;
                     if (h.isNetPuppet) { puppets++; if (h.characterData != null && !string.IsNullOrEmpty(h.characterData.characterId)) withData++; }
