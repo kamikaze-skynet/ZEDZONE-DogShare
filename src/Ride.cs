@@ -206,7 +206,9 @@ namespace DogShare
         [HarmonyPostfix]
         static void OfflinePet(GOAPNPCData __0)
         {
+            long t0 = Hitch.Start();
             try { Ride.AfterOfflineUpdate(__0); } catch (Exception e) { DLog.ErrorThrottled("rideoffline", 30f, "car", "Keeping a guest's dog with the car failed", e); }
+            finally { Hitch.Stop("car check", t0); }
         }
     }
 }

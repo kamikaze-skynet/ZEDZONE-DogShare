@@ -140,7 +140,8 @@ namespace DogShare
             {
                 var text = msg?.text;
                 if (!Proto.Is(text)) return true;
-                HostHandler.Handle(text, peer);
+                long t0 = Hitch.Start();
+                try { HostHandler.Handle(text, peer); } finally { Hitch.Stop("guest requests", t0); }
             }
             catch (Exception e) { DLog.Error("error", "Handling a guest request failed", e); }
             return false;   // never relay or show
@@ -155,7 +156,8 @@ namespace DogShare
             {
                 var text = msg?.text;
                 if (!Proto.Is(text)) return true;
-                GuestMirror.OnHostMessage(text);
+                long t0 = Hitch.Start();
+                try { GuestMirror.OnHostMessage(text); } finally { Hitch.Stop("host replies", t0); }
             }
             catch (Exception e) { DLog.Error("error", "Handling a host reply failed", e); }
             return false;

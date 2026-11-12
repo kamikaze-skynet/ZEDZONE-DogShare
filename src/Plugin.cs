@@ -22,7 +22,7 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.4.11";
+        public const string Version = "1.4.12";
 
         internal static ManualLogSource L;
         internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
@@ -51,7 +51,7 @@ namespace DogShare
 
             var harmony = new Harmony(Guid);
             int ok = 0, failed = 0;
-            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch) })
+            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch), typeof(ReleasedPatches) })
             {
                 try
                 {
@@ -107,6 +107,7 @@ namespace DogShare
         static void Postfix(string __0, ref BasicCharacterController __result)
         {
             if (__result != null || string.IsNullOrEmpty(__0)) return;
+            long t0 = Hitch.Start();
             try
             {
                 if (!NetworkManager.isOnline || NetworkManager.isClient) return;
@@ -118,6 +119,7 @@ namespace DogShare
                 }
             }
             catch { }
+            finally { Hitch.Stop("leader lookups", t0); }
         }
     }
 
@@ -133,6 +135,13 @@ namespace DogShare
 
         void Update()
         {
+            Hitch.Roll();
+            long t0 = Hitch.Start();
+            try { HostUpdate(); } finally { Hitch.Stop("host update", t0); }
+        }
+
+        void HostUpdate()
+        {
             try
             {
                 string role = !NetworkManager.isOnline ? "offline / single-player" : NetworkManager.isClient ? "guest" : "host";
@@ -143,7 +152,7 @@ namespace DogShare
                 if (Time.unscaledTime >= _nextStatus) { _nextStatus = Time.unscaledTime + 30f; Status(); }
                 if (Pressed(Plugin.GiveKey.Value)) Give();
                 else if (Pressed(Plugin.TakeKey.Value)) TakeBack();
-                if (Time.unscaledTime >= _nextTick) { _nextTick = Time.unscaledTime + 2f; Maintain(); }
+                if (Time.unscaledTime >= _nextTick) { _nextTick = Time.unscaledTime + 2f; Maintain(); try { Released.Sweep(); } catch (Exception e) { DLog.ErrorThrottled("relsweep", 60f, "host", "Released-dog check failed", e); } }
             }
             catch (Exception e) { DLog.Error("error", "Host update failed", e); _nextTick = Time.unscaledTime + 10f; }
         }
@@ -279,7 +288,7 @@ namespace DogShare
             {
                 if (p == null) continue;
                 var d = p.npcData;
-                if (d == null || PetSystem.IsStrayPet(d)) continue;
+                if (d == null || PetSystem.IsStrayPet(d) || Released.Is(d)) continue;
                 list.Add(p);
             }
             return list;

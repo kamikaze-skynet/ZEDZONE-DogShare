@@ -13,6 +13,12 @@ namespace DogShare
         [HarmonyPostfix]
         static void Postfix(TeamNPCPanel __instance)
         {
+            long t0 = Hitch.Start();
+            try { Run(__instance); } finally { Hitch.Stop("dog count", t0); }
+        }
+
+        static void Run(TeamNPCPanel __instance)
+        {
             try
             {
                 var text = __instance?.headerCountText;
