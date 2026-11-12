@@ -240,7 +240,7 @@ namespace DogShare
             if (data == null) { DLog.Error("kennel", $"'{e.Name}' couldn't be read back ({e.Bytes.Length} bytes) - kept in the kennel"); return $"Couldn't load {e.Name} - it stays in the kennel."; }
             DLog.Info("kennel", $"Bringing back '{e.Name}' ({DLog.S(e.Guid)}) for {DogShareBehaviour.GuestName(owner)}: {Describe(data)}");
 
-            Vector2 at = DogShareBehaviour.Pos(owner) + new Vector2(1f, 0f);
+            Vector2 at = DogShareBehaviour.Pos(owner);   // where the owner stands is always open ground (1 m to the side could be inside a wall)
             data.leaderCharacterGUID = ownerId;
             try { data.npcPosition = at; } catch { }
             try { if (data.petData != null) { data.petData.ridingWithOwner = false; data.petData.basicCommand = "Follow"; } } catch { }
@@ -362,6 +362,17 @@ namespace DogShare
         static bool _open;
         static string _status = "";
         static int _sel;   // selected row in the list (arrow keys), brought back with Space / Enter
+        static float _closedAt = -100f;
+
+        // While the list is open (and a moment after it closes, so the closing Esc doesn't count) the game is told
+        // the player is busy, the same way it is while typing in chat, so Space / Esc / arrows don't act in the game.
+        internal static bool BlocksGameInput => _open || Time.unscaledTime - _closedAt < 0.3f;
+        internal static int BlockHits;   // how often the game asked while the list was open (logged on close, for testing)
+        static void Close()
+        {
+            if (_open) { _closedAt = Time.unscaledTime; DLog.Info("kennel", $"List closed. The game checked for blocked input {BlockHits} time(s) while it was open{(BlockHits == 0 ? " - keys may have reached the game" : "")}"); }
+            _open = false; BlockHits = 0;
+        }
 
         internal static void Tick()
         {
@@ -376,13 +387,13 @@ namespace DogShare
             if (DogShareBehaviour.Pressed(Plugin.KennelStoreKey.Value)) Run("store", () => { if (guest) GuestStore(); else HostStore(); });
             else if (DogShareBehaviour.Pressed(Plugin.KennelRestoreKey.Value))
             {
-                _open = !_open;
+                if (_open) Close(); else _open = true;
                 _status = "";
                 if (_open && guest) { _remoteLoaded = false; Ask("KL"); }
                 if (_open && !guest) Ensure();
             }
             if (!_open) return;
-            if (DogShareBehaviour.Pressed(KeyCode.Escape)) { _open = false; return; }
+            if (DogShareBehaviour.Pressed(KeyCode.Escape)) { Close(); return; }
             var list = CurrentList(guest);
             if (list.Count == 0) { _sel = 0; return; }
             if (DogShareBehaviour.Pressed(KeyCode.UpArrow)) _sel = (_sel - 1 + list.Count) % list.Count;
@@ -492,7 +503,19 @@ namespace DogShare
                 if (_status.Length > 0) GUI.Label(new Rect(r.x + 12f, r.yMax - 46f, w - 24f, 22f), _status);
                 GUI.Label(new Rect(r.x + 12f, r.yMax - 24f, w - 24f, 22f), $"Up / Down: choose    Space: bring back    {Plugin.KennelRestoreKey.Value} / Esc: close");
             }
-            catch (Exception e) { DLog.ErrorThrottled("kennelgui", 30f, "kennel", "Drawing the kennel list failed", e); _open = false; }
+            catch (Exception e) { DLog.ErrorThrottled("kennelgui", 30f, "kennel", "Drawing the kennel list failed", e); Close(); }
         }
+    }
+
+    // Keeps the game from acting on keys while the kennel list is open (see Kennel.BlocksGameInput).
+    internal static class KennelPatches
+    {
+        [HarmonyLib.HarmonyPatch(typeof(ZedZone.Net.NetChatBar), "get_isTypingChat")]
+        [HarmonyLib.HarmonyPostfix]
+        static void TypingChat(ref bool __result) { try { if (!__result && Kennel.BlocksGameInput) { __result = true; Kennel.BlockHits++; } } catch { } }
+
+        [HarmonyLib.HarmonyPatch(typeof(GenericConfirmPanel), "get_blocksCharacterInput")]
+        [HarmonyLib.HarmonyPostfix]
+        static void BlocksInput(ref bool __result) { try { if (!__result && Kennel.BlocksGameInput) { __result = true; Kennel.BlockHits++; } } catch { } }
     }
 }

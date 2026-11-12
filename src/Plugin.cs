@@ -53,7 +53,7 @@ namespace DogShare
 
             var harmony = new Harmony(Guid);
             int ok = 0, failed = 0;
-            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch), typeof(ReleasedPatches) })
+            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch), typeof(ReleasedPatches), typeof(KennelPatches) })
             {
                 try
                 {

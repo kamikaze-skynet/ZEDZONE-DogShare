@@ -12,6 +12,8 @@
   - Guests can't store a dog while its saddlebag is open (items moved in after that would be lost). Close the bag first.
   - If the host's DogShare is too old for the kennel, guests get a message saying so instead of a list that never loads.
   - If the kennel file can't be written, the dog stays in the world.
+  - While the kennel list is open the game ignores your keys (like when you type in chat), so Space, Esc and the arrows only work the list.
+  - A dog brought back appears where you stand, so it can't end up inside a wall.
 
 ## 1.4.12
 - Fix: a released dog came back. Releasing a dog leaves it in its owner's team list, so the next time the team changed (hiring someone, or taking a dog back with F8) it rejoined and followed again. The host now remembers released dogs (in `BepInEx\config\DogShare.released.txt`), takes them off every team list, stops them rejoining, and leaves them out of give / take back. Adopting the dog again makes it a normal dog again.
