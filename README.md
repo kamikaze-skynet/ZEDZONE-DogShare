@@ -7,6 +7,7 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 - The host can keep **3 dogs** in co-op again, like single-player.
 - **F7** (host): gives the dog closest to you to the player closest to you. Each guest can have up to 3.
 - **F8** (host): takes back the guest's dog closest to you.
+- **Kennel (everyone):** **F9** puts your dog closest to you in the kennel. It leaves the world and your team, and keeps its name, breed, affection, skills, gear and saddlebag, and it doesn't get hungry. **F10** opens the kennel list; pick a dog with the **Up / Down** arrows and press **Space** to bring it back next to you. The host keeps each player's kennel per world (`BepInEx/config/DogShare.kennel/`), so a guest's stored dogs wait for them.
 - A guest's dog follows them and fights for them. It's saved in the host's world, and links back to its owner when they rejoin.
 - **Guests use their dog like their own:** the game's **Commands / Pet / Feed** prompt at the dog, the Teammates card and its orders menu (Follow, Stay, Passive, Defensive, Aggressive), rename, skills, first aid, gear (collar, vest, saddlebag) and the saddlebag's storage. Food, medicine and gear come from and go back to the guest's own backpack; the host does each action on the real dog with the game's own code.
 - **Animations and sounds are synced** for players with DogShare: dogs sitting to be petted or eating, their barks, whines and happy sounds, and the petting pose reach everyone (the game itself only plays them on the host / the PC doing it).
@@ -44,6 +45,8 @@ Start the game through Steam. `BepInEx\LogOutput.log` should show `DogShare <ver
 |---|---|---|
 | `Keys.GiveDogKey` | `F7` | Give your nearest dog to the nearest guest. |
 | `Keys.TakeBackDogKey` | `F8` | Take back the nearest guest-owned dog. |
+| `Keys.KennelStoreKey` | `F9` | Put your nearest dog in the kennel. |
+| `Keys.KennelBringBackKey` | `F10` | Open / close the kennel list. |
 | `Rules.MaxDogsPerGuest` | `3` | How many dogs each guest can be given. |
 | `Rules.Range` | `8` | How close the guest / dog has to be. |
 | `Rules.AutoFeedGuestDogs` | `false` | Keep guest-owned dogs' hunger full automatically. Off: guest dogs get hungry like your own and their owner feeds them. |

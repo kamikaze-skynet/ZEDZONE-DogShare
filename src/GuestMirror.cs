@@ -38,6 +38,8 @@ namespace DogShare
         internal static readonly Dictionary<IntPtr, Mirror> ByPtr = new Dictionary<IntPtr, Mirror>();
         static readonly Dictionary<string, Mirror> ByGuid = new Dictionary<string, Mirror>();
         internal static int Count => ByGuid.Count;
+        internal static IEnumerable<Mirror> Mirrors() => ByGuid.Values;
+        internal static bool PouchOpenFor(Mirror m) => m != null && _pouchOpen == m;
 
         class Incoming { public string Handle, Guid, Name; public int NetId, Breed, Level, Points, Spent, Combat; public float Xp, LastPet, Hunger = -1f; public bool Stay, Unc; public List<int[]> Skills = new List<int[]>(); }
         static readonly Dictionary<string, Incoming> _incoming = new Dictionary<string, Incoming>();
@@ -219,6 +221,7 @@ namespace DogShare
             if (p.Length < 2) return;
             if (p[1] == "*") { if (!_hostHasMod) { _hostHasMod = true; DLog.Info("guest", "Host runs DogShare - shared dogs enabled"); } AnimSync.GuestOnMessage(p); return; }
             if (p[1] != Proto.Short(MyId())) return;
+            if (p[0] == "KE" || p[0] == "KX") { if (!_hostHasMod) _hostHasMod = true; Kennel.GuestOnMessage(p); return; }
             if (!_hostHasMod) { _hostHasMod = true; DLog.Info("guest", "Host runs DogShare - shared dogs enabled"); }
             if (p[0] != "D" && p[0] != "K" && p[0] != "E") DLog.Debug("guest", "<- host: " + HostHandler.OpName(p[0]) + " " + (p[0] == "B" ? p[2] + " " + p[3] + " part " + (p.Length > 6 ? p[5] + "/" + p[6] : "?") : text.Length > 120 ? text.Substring(Proto.Mark.Length, 110) + "..." : text.Substring(Proto.Mark.Length)));
             switch (p[0])

@@ -51,10 +51,19 @@ The base game only shows these on one PC. With DogShare everyone sees and hears 
 [/olist]
 Only the host uses F7 / F8. Guests just walk up to their dog and use the normal prompt.
 
+[h2]Kennel[/h2]
+Everyone can store dogs they want to keep but don't need right now.
+[list]
+[*][b]F9[/b]: put your dog closest to you in the kennel. It leaves the world and your team, keeps its name, breed, affection, skills, gear and saddlebag, and doesn't get hungry.
+[*][b]F10[/b]: open the kennel list, pick a dog with the [b]Up / Down[/b] arrows and press [b]Space[/b]. The dog appears next to you.
+[/list]
+The host keeps everyone's kennel with the world, so a guest's stored dogs wait for them.
+
 [h2]Settings[/h2]
 BepInEx/config/girthy_mods.zedzone.dogshare.cfg (created after the first launch):
 [list]
 [*][b]GiveDogKey[/b] (F7) / [b]TakeBackDogKey[/b] (F8): the host's keys.
+[*][b]KennelStoreKey[/b] (F9) / [b]KennelBringBackKey[/b] (F10): the kennel keys.
 [*][b]MaxDogsPerGuest[/b] (3): how many dogs each guest can be given.
 [*][b]Range[/b] (8): how close the guest or dog has to be when giving / taking back.
 [*][b]AutoFeedGuestDogs[/b] (off): keep guest dogs fed automatically instead of their owner feeding them.
