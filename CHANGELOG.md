@@ -1,19 +1,7 @@
 # Changelog
 
-## 1.5.0
-- New: kennel. Put a dog away and bring the same dog back later, with its name, breed, affection, skills, gear and saddlebag. Stored dogs leave the world and the team, don't count toward the 3-dog limit, and don't get hungry.
-  - **F9**: store your dog closest to you (host, guests and single player).
-  - **F10**: open the kennel list, pick a dog with the **Up / Down** arrows and press **Space** (or Enter) to bring it back next to you. No mouse clicks, so no shots fired. You still need a free slot (3 dogs, or the host's MaxDogsPerGuest for guests).
-  - The host keeps everyone's stored dogs, one file per world in `BepInEx\config\DogShare.kennel\`. Each player only sees their own. A guest's dogs wait for them while they're offline.
-  - Dogs are saved in the game's own save format, and the file is written and checked before the dog is removed. A kennel entry is only deleted once the dog is back. Every step is logged under `[kennel]` in DogShare.log.
-  - Guests need DogShare 1.5.0 and a host with 1.5.0.
-  - A dog carrying something (a ball, a gift) drops it at your feet when it goes into the kennel, so the item isn't lost.
-  - The list shows each dog's breed, and scrolls when you have more than 8 stored dogs.
-  - Guests can't store a dog while its saddlebag is open (items moved in after that would be lost). Close the bag first.
-  - If the host's DogShare is too old for the kennel, guests get a message saying so instead of a list that never loads.
-  - If the kennel file can't be written, the dog stays in the world.
-  - While the kennel list is open the game ignores your keys (like when you type in chat), so Space, Esc and the arrows only work the list.
-  - A dog brought back appears where you stand, so it can't end up inside a wall.
+## 1.4.13
+- Guests: the game's label over your dog (its name, mood like "(Happy)", and the health and hunger bars) now shows over a dog the host gave you, the same as over the host's own dogs. Before, it never showed for a guest's dog.
 
 ## 1.4.12
 - Fix: a released dog came back. Releasing a dog leaves it in its owner's team list, so the next time the team changed (hiring someone, or taking a dog back with F8) it rejoined and followed again. The host now remembers released dogs (in `BepInEx\config\DogShare.released.txt`), takes them off every team list, stops them rejoining, and leaves them out of give / take back. Adopting the dog again makes it a normal dog again.

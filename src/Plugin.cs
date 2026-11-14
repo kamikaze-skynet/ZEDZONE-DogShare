@@ -22,10 +22,10 @@ namespace DogShare
     public class Plugin : BasePlugin
     {
         public const string Guid = "girthy_mods.zedzone.dogshare";
-        public const string Version = "1.5.0";
+        public const string Version = "1.4.13";
 
         internal static ManualLogSource L;
-        internal static ConfigEntry<KeyCode> GiveKey, TakeKey, KennelStoreKey, KennelRestoreKey;
+        internal static ConfigEntry<KeyCode> GiveKey, TakeKey;
         internal static ConfigEntry<int> MaxPerGuest;
         internal static ConfigEntry<float> Range;
         internal static ConfigEntry<bool> KeepFed;
@@ -38,8 +38,6 @@ namespace DogShare
             L = Log;
             GiveKey = Config.Bind("Keys", "GiveDogKey", KeyCode.F7, "Host: give the dog nearest to you to the guest nearest to you.");
             TakeKey = Config.Bind("Keys", "TakeBackDogKey", KeyCode.F8, "Host: take back the guest-owned dog nearest to you.");
-            KennelStoreKey = Config.Bind("Keys", "KennelStoreKey", KeyCode.F9, "Put your nearest dog in the kennel (host, guest or single player).");
-            KennelRestoreKey = Config.Bind("Keys", "KennelBringBackKey", KeyCode.F10, "Open / close the kennel list to bring a dog back.");
             MaxPerGuest = Config.Bind("Rules", "MaxDogsPerGuest", 3, "How many dogs each guest can be given.");
             Range = Config.Bind("Rules", "Range", 8f, "How close (in game units) the guest / dog must be to the host.");
             KeepFed = Config.Bind("Rules", "AutoFeedGuestDogs", false, "Keep guest-owned dogs' hunger full automatically. Off (default): guest dogs get hungry like your own, and their owner feeds them.");
@@ -53,7 +51,7 @@ namespace DogShare
 
             var harmony = new Harmony(Guid);
             int ok = 0, failed = 0;
-            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch), typeof(ReleasedPatches), typeof(KennelPatches) })
+            foreach (var t in new[] { typeof(Patches), typeof(GuidPatch), typeof(ChatPatches), typeof(GuestPatches), typeof(PromptGatePatches), typeof(HostCardPatch), typeof(AnimPatches), typeof(FetchPatches), typeof(RidePatches), typeof(OneDogPatches), typeof(TeamCountPatch), typeof(ReleasedPatches) })
             {
                 try
                 {
@@ -142,15 +140,12 @@ namespace DogShare
             try { HostUpdate(); } finally { Hitch.Stop("host update", t0); }
         }
 
-        void OnGUI() { Kennel.OnGUI(); }
-
         void HostUpdate()
         {
             try
             {
                 string role = !NetworkManager.isOnline ? "offline / single-player" : NetworkManager.isClient ? "guest" : "host";
                 DLog.Change("role", "role", "Now " + role);
-                try { Kennel.Tick(); } catch (Exception e) { DLog.ErrorThrottled("kenneltick", 30f, "kennel", "Kennel keys failed", e); }
                 if (!NetworkManager.isOnline || NetworkManager.isClient) return;   // host only
                 Fetch.HostTick();
                 Ride.HostTick();
@@ -183,9 +178,6 @@ namespace DogShare
                     KeyCode.F7 => UnityEngine.InputSystem.Key.F7, KeyCode.F8 => UnityEngine.InputSystem.Key.F8,
                     KeyCode.F9 => UnityEngine.InputSystem.Key.F9, KeyCode.F10 => UnityEngine.InputSystem.Key.F10,
                     KeyCode.F11 => UnityEngine.InputSystem.Key.F11, KeyCode.F12 => UnityEngine.InputSystem.Key.F12,
-                    KeyCode.UpArrow => UnityEngine.InputSystem.Key.UpArrow, KeyCode.DownArrow => UnityEngine.InputSystem.Key.DownArrow,
-                    KeyCode.Space => UnityEngine.InputSystem.Key.Space, KeyCode.Return => UnityEngine.InputSystem.Key.Enter,
-                    KeyCode.Escape => UnityEngine.InputSystem.Key.Escape,
                     _ => UnityEngine.InputSystem.Key.None
                 };
                 return k != UnityEngine.InputSystem.Key.None && kb[k].wasPressedThisFrame;

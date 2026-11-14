@@ -186,7 +186,6 @@ namespace DogShare
             if (_moddedGuests.Add(charId)) DLog.Info("req", $"{who} ({to}) runs DogShare - answering their requests");
             AnimSync.RememberPeer(charId, peer);
             if (op == "V") { AnimSync.HostOnGuestPose(charId, p.Length > 1 && p[1] == "1"); return; }
-            if (Kennel.HandleGuest(op, p, charId, peer)) return;
 
             if (op == "L")
             {
