@@ -367,6 +367,7 @@ namespace DogShare
                     DLog.Info("guest", $"'{d.Name}': attached pet data to its stand-in - game sees it: {(readsBack ? "yes" : "NO")}, owned by me: {(owned ? "yes" : "NO")}" +
                         (readsBack && owned ? " -> the Commands / Pet prompt should appear when you walk up to it" : " -> the game's prompts won't show for it"));
                 }
+                if (agent != null) LinkOverhead(m, agent, d.Name);
                 else if (agent == null) DLog.Change("noagent|" + d.Guid, "guest", $"'{d.Name}': its stand-in has no pet AI component - can't attach");
             }
             else if (m.Data.characterData == null)
@@ -450,8 +451,27 @@ namespace DogShare
             if (slot == "p" && _pouchOpen == m && item == null) _pouchOpen = null;
         }
 
+        // The game's label over a dog (name, mood, health and hunger bars: PetOverheadUI) finds the dog's body through
+        // GOAPNPCData.agentCache. A guest's mirror had none, so the label never showed over a dog the host gave them.
+        // Point it at the stand-in's (disabled) pet AI component, the way the host's own dogs are linked.
+        static void LinkOverhead(Mirror m, GOAPAgent_Pet agent, string name)
+        {
+            try
+            {
+                var cur = m.Data.agentCache;
+                if (cur != null && cur.Pointer == agent.Pointer) return;
+                m.Data.agentCache = agent;
+                bool body = false; try { body = agent.character != null && agent.character.Pointer == m.Pc?.Pointer; } catch { }
+                DLog.Info("guest", $"'{name}': linked its overhead label (name, mood, bars) to the stand-in - body found: {(body ? "yes" : "NO")}");
+                try { PetOverheadUI.NotifyAdd(m.Data); } catch (Exception e) { DLog.Error("guest", "Adding the overhead label failed", e); }
+            }
+            catch (Exception e) { DLog.ErrorThrottled("overhead|" + m.Guid, 60f, "guest", $"'{name}': linking the overhead label failed", e); }
+        }
+
         static void Remove(Mirror m)
         {
+            try { var c = m.Data.agentCache; if (c != null) m.Data.agentCache = null; } catch { }
+            try { PetOverheadUI.NotifyRemove(m.Data); } catch { }
             try
             {
                 foreach (var pc in UnityEngine.Object.FindObjectsOfType<PetCharacterController>())

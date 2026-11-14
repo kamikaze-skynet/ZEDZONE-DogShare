@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.13
+- Guests: the game's label over your dog (its name, mood like "(Happy)", and the health and hunger bars) now shows over a dog the host gave you, the same as over the host's own dogs. Before, it never showed for a guest's dog.
+
 ## 1.4.12
 - Fix: a released dog came back. Releasing a dog leaves it in its owner's team list, so the next time the team changed (hiring someone, or taking a dog back with F8) it rejoined and followed again. The host now remembers released dogs (in `BepInEx\config\DogShare.released.txt`), takes them off every team list, stops them rejoining, and leaves them out of give / take back. Adopting the dog again makes it a normal dog again.
 - Freeze detector: when a frame takes longer than a quarter of a second, DogShare writes a `perf` line to its log with how long the frame took and how much of that time was DogShare's own work, split by part. Use it to tell whether a freeze comes from DogShare or from something else.
