@@ -73,3 +73,6 @@ DogShare writes its own log to [b]BepInEx/DogShare.log[/b] in the game folder. I
 [/list]
 
 Source and issues: https://github.com/kamikaze-skynet/ZEDZONE-DogShare
+
+[h2]Settings and keys: Mod Menu[/h2]
+Press [b]F11[/b] in game to open [b]Mod Menu[/b] (Steam installs it with this mod). There you can rebind this mod's keys (give F7, take back F8) and change its settings without editing files.
