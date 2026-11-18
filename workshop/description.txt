@@ -38,7 +38,7 @@ The base game only shows these on one PC. With DogShare everyone sees and hears 
 [/list]
 
 [h2]Requires[/h2]
-[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258]ZED ZONE Code Mod Loader[/url]. Run its install.cmd once, then start the game through Steam.
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258]ZED ZONE Code Mod Loader[/url] - run its install.cmd once, then start the game through Steam.
 
 [b]Everyone should subscribe.[/b] The host needs DogShare to give dogs and to run guests' actions on the real dog. Guests need it for the prompts, Teammates card, fetch, notices and synced animations. A guest without it still gets a dog that follows and fights for them.
 
