@@ -17,10 +17,10 @@ In co-op the game only allows **one dog for the whole session**, and only the ho
 
 **Everyone should have DogShare:** the host to give dogs, guests for the prompts and Teammates card. A guest without it still gets a dog that follows and fights for them.
 
-## Requirements
+## Requires
 
 - ZED ZONE (Windows, Steam)
-- [ZED ZONE Code Mod Loader](https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258) (BepInEx 6 IL2CPP + ZedModsLoader). Run its `install.cmd` once.
+- [ZED ZONE Code Mod Loader](https://steamcommunity.com/sharedfiles/filedetails/?id=3834614258) - run its install.cmd once, then start the game through Steam.
 
 ## Install
 
