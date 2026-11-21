@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.14
+- Works with ZED ZONE 1.0.21 (November 20). The game changed how it opens and lists loot windows (for the new storage renaming), and DogShare's saddlebag code used the old version, so opening a dog's saddlebag as a guest failed. Rebuilt for the new game code.
+
 ## 1.4.13
 - Guests: the game's label over your dog (its name, mood like "(Happy)", and the health and hunger bars) now shows over a dog the host gave you, the same as over the host's own dogs. Before, it never showed for a guest's dog.
 

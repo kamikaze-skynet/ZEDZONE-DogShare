@@ -179,7 +179,8 @@ namespace DogShare
             if (panel == null || !panel.gameObject.activeInHierarchy) return false;
             var datas = new Il2CppSystem.Collections.Generic.List<InventoryData>();
             var names = new Il2CppSystem.Collections.Generic.List<string>();
-            panel.GetOpenedInventoryStack(datas, names);
+            var renames = new Il2CppSystem.Collections.Generic.List<ItemRenaming.ItemRenameContext>();
+            panel.GetOpenedInventoryStack(datas, names, renames);
             for (int i = 0; i < datas.Count; i++) if (datas[i] != null && datas[i].Pointer == inv.Pointer) return true;
             return false;
         }
